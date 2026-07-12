@@ -24,7 +24,8 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - Optional e-ink discipline mode.
 - Installable PWA manifest and offline app-shell service worker.
 - Optional WebGPU local tutor using `LiquidAI/LFM2.5-350M-ONNX` via Transformers.js.
-- Strict, short arithmetic-tutor system prompt in `src/localTutor.ts`.
+- Strict, short arithmetic-tutor system prompt in `src/tutorPrompt.ts`.
+- Model inference runs off the UI thread in a dedicated Web Worker; the model revision and Q4 dtype are pinned and GPU resources are disposed on page exit.
 - Unit tests for problem generation and learning progression.
 - GitHub Pages Actions workflow.
 
@@ -50,6 +51,9 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - 2026-07-11: `npm run build` — production build passed with Vite 8.1.4. The optional ONNX runtime WASM asset is ~23.6 MB uncompressed; the core app JS is ~201 KB before gzip.
 - 2026-07-11: Private repo created and root commit `6b5de15` pushed to `main`.
 - 2026-07-11: Pages creation attempted through `gh`; blocked with HTTP 422 because the current organization plan does not support Pages for this private repository.
+- 2026-07-11: Production preview smoke-test passed for index, manifest, service worker, and hashed JS asset (all HTTP 200 with project-relative URLs).
+- 2026-07-11: GitHub Actions run `29179301833` passed tests and build after gating unavailable Pages deployment.
+- 2026-07-11: Transformers.js integration reviewed against model metadata: text-generation/WebGPU tags and Q4 ONNX files confirmed; inference moved to a Web Worker and revision pinned.
 
 ## Known risks / follow-ups
 

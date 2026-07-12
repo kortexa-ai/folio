@@ -15,7 +15,7 @@ Run `npm test` and `npm run build` before publishing. GitHub Actions deploys `ma
 
 ## Local tutor
 
-The deterministic tutor is always available. Enabling local AI downloads the quantized model from Hugging Face and keeps inference in the browser. The prompt lives in [`src/localTutor.ts`](./src/localTutor.ts). WebGPU and significant free storage/memory are required; unsupported devices fall back cleanly.
+The deterministic tutor is always available. Enabling local AI downloads a revision-pinned Q4 model from Hugging Face and runs inference in a Web Worker. The prompt lives in [`src/tutorPrompt.ts`](./src/tutorPrompt.ts). WebGPU and significant free storage/memory are required; unsupported devices fall back cleanly.
 
 ## Privacy
 
