@@ -40,9 +40,8 @@ Build the first client-only implementation of the learning-tablet brief, publish
 
 ## Resume here
 
-1. Confirm the first Pages deployment and smoke-test the public URL.
-2. Continue accessibility and real iPad/Pencil testing.
-3. Test model loading on a WebGPU device; the current development machine may not expose a suitable browser GPU.
+1. Continue accessibility and real iPad/Pencil testing.
+2. Test model loading on a WebGPU device; the current development machine may not expose a suitable browser GPU.
 
 ## Validation log
 
@@ -58,6 +57,7 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - 2026-07-11: Hardened service-worker updates: navigation is network-first, old Folio caches are removed on activation, and offline navigation falls back to the cached shell.
 - 2026-07-11: Latest full CI checkpoint `cd26361` passed. Updated checkout/setup-node Actions to v5 after GitHub flagged the v4 Node 20 runtime as deprecated.
 - 2026-07-11: With explicit approval, changed `kortexa-ai/folio` from private to public, enabled Pages with the Actions source, and set `PAGES_ENABLED=true`.
+- 2026-07-11: First public deployment succeeded in Actions run `29183066595`. Smoke-tested the live HTML, JS, CSS, manifest, service worker, and install icon at `https://kortexa-ai.github.io/folio/`; every endpoint returned HTTP 200 over HTTPS.
 
 ## Known risks / follow-ups
 
