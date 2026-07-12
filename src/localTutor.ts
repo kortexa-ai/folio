@@ -1,5 +1,5 @@
-import type { Problem } from './math';
-import { formatProblem } from './math';
+
+
 export { MODEL_ID, SYSTEM_PROMPT } from './tutorPrompt';
 
 const worker = new Worker(new URL('./localTutor.worker.ts', import.meta.url), { type: 'module' });
@@ -24,8 +24,8 @@ export async function loadTutor(onProgress?: (message: string) => void) {
   await askWorker({ type: 'load' }, onProgress);
 }
 
-export async function getLocalHint(problem: Problem, attempt: string) {
-  return askWorker({ type: 'hint', problem: formatProblem(problem), attempt });
+export async function getLocalHint(problem: string, attempt: string) {
+  return askWorker({ type: 'hint', problem, attempt });
 }
 
 addEventListener('pagehide', () => { worker.postMessage({ id: ++requestId, type: 'dispose' }); });

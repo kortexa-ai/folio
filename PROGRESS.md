@@ -65,3 +65,13 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - Service worker is intentionally small. Cache version changes are currently manual; a Vite PWA plugin could inject build revisions later.
 - Current scratchpad ink is session-only and is intentionally not exported or sent to the tutor.
 - System font stacks keep the app fully independent of remote font services; a custom bundled typeface can be considered later.
+
+## v2 rework (2026-07-12)
+
+- **Removed the keyboard.** The numeric input field is gone; answers are handwritten into a dashed answer zone on the ink page and read by an on-device $P point-cloud digit recognizer (`src/recognizer.ts`) with multi-digit grouping and tap-to-correct alternative chips. No downloads, works offline.
+- **Curriculum is now a prerequisite graph, not a ladder.** `src/curriculum.ts` embeds 13 micro-topics and 16 dependency edges extracted from the Marble Skill Taxonomy (ODbL/CC BY-SA, see ATTRIBUTION.md). Topics unlock when prerequisites are mastered (first-try streak or accuracy threshold); mastered topics get occasional spaced review.
+- **Lessons are generated, and varied.** Per-topic generators produce story problems with rotating names/objects, missing-number equations, making-ten scaffolds, array-drawing prompts, and times tables — each with two deterministic hint stages; the optional local model receives the full problem statement.
+- **Learning map** panel (tap the chapter name) shows mastered / open / locked topics with taxonomy names, ages, and per-topic accuracy.
+- **E-ink discipline mode upgraded** from a grayscale filter to limited palette + motion removal + a simulated refresh flash on page turns.
+- **Storage v2** keyed by taxonomy topic id, with automatic migration of v1 per-operation exports.
+- Tests: 17 across curriculum, recognizer, and storage. `npm test` and `npm run build` green.
