@@ -10,8 +10,9 @@ Build the first client-only implementation of the learning-tablet brief, publish
 
 - Product brief reviewed and retained in the repository.
 - First working app implementation written and locally validated.
-- GitHub repository has not yet been created. The intended name `kortexa-ai/folio` was confirmed available.
-- Pages has not yet been enabled or deployed.
+- Private GitHub repository created and pushed: `https://github.com/kortexa-ai/folio`.
+- GitHub Pages is blocked by the organization plan: GitHub's API returned `422 Your current plan does not support GitHub Pages for this repository.` The repo remains private as requested.
+- The Actions workflow still runs tests/builds on every push; its deployment steps are gated by repository variable `PAGES_ENABLED=true` so CI stays green while Pages is unavailable.
 
 ## Implemented locally
 
@@ -38,15 +39,17 @@ Build the first client-only implementation of the learning-tablet brief, publish
 
 ## Resume here
 
-1. Initialize Git on `main`, create private `kortexa-ai/folio`, and push the validated checkpoint.
-2. Configure Pages for GitHub Actions and wait for a successful deployment.
-3. Open the live site and test the core lesson flow and static asset paths.
-4. Add further tests/accessibility polish and test model loading if time permits.
+1. Choose one Pages unblock: upgrade the `kortexa-ai` plan or make the repository public. Do not change visibility without approval.
+2. Once unblocked, enable Pages with `gh api --method POST repos/kortexa-ai/folio/pages -f build_type=workflow`, set `gh variable set PAGES_ENABLED --repo kortexa-ai/folio --body true`, rerun the workflow, and test the live URL.
+3. Continue local smoke-testing and accessibility polish.
+4. Test model loading on a WebGPU device; the current development machine may not expose a suitable browser GPU.
 
 ## Validation log
 
 - 2026-07-11: `npm test` — 2 tests passed.
 - 2026-07-11: `npm run build` — production build passed with Vite 8.1.4. The optional ONNX runtime WASM asset is ~23.6 MB uncompressed; the core app JS is ~201 KB before gzip.
+- 2026-07-11: Private repo created and root commit `6b5de15` pushed to `main`.
+- 2026-07-11: Pages creation attempted through `gh`; blocked with HTTP 422 because the current organization plan does not support Pages for this private repository.
 
 ## Known risks / follow-ups
 

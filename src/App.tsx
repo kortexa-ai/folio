@@ -85,6 +85,6 @@ export default function App() {
       <div className={`feedback ${feedback.kind}`} aria-live="polite"><span>{feedback.kind === 'good' ? '✓' : feedback.kind === 'try' ? '↺' : '✦'}</span><p>{feedback.text}</p></div>
       <div className="actions"><button className="secondary" onClick={hint}>Give me a hint</button><button className="primary" onClick={check}>Check my answer <span>→</span></button></div>
     </section>
-    <footer><span>Progress stays on this device</span><i>•</i><span>{progress.streak} day-of-play streak</span></footer>
+    <footer><span>Progress stays on this device</span><i>•</i><span>{progress.streak} answer streak</span></footer>
   </main>;
 }
