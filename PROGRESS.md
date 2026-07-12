@@ -10,9 +10,9 @@ Build the first client-only implementation of the learning-tablet brief, publish
 
 - Product brief reviewed and retained in the repository.
 - First working app implementation written and locally validated.
-- Private GitHub repository created and pushed: `https://github.com/kortexa-ai/folio`.
-- GitHub Pages is blocked by the organization plan: GitHub's API returned `422 Your current plan does not support GitHub Pages for this repository.` The repo remains private as requested.
-- The Actions workflow still runs tests/builds on every push; its deployment steps are gated by repository variable `PAGES_ENABLED=true` so CI stays green while Pages is unavailable.
+- Public GitHub repository created and pushed: `https://github.com/kortexa-ai/folio`.
+- GitHub Pages is enabled with the Actions deployment source at `https://kortexa-ai.github.io/folio/`.
+- Repository variable `PAGES_ENABLED=true` enables the deployment steps after every successful test/build on `main`.
 
 ## Implemented locally
 
@@ -40,10 +40,9 @@ Build the first client-only implementation of the learning-tablet brief, publish
 
 ## Resume here
 
-1. Choose one Pages unblock: upgrade the `kortexa-ai` plan or make the repository public. Do not change visibility without approval.
-2. Once unblocked, enable Pages with `gh api --method POST repos/kortexa-ai/folio/pages -f build_type=workflow`, set `gh variable set PAGES_ENABLED --repo kortexa-ai/folio --body true`, rerun the workflow, and test the live URL.
-3. Continue local smoke-testing and accessibility polish.
-4. Test model loading on a WebGPU device; the current development machine may not expose a suitable browser GPU.
+1. Confirm the first Pages deployment and smoke-test the public URL.
+2. Continue accessibility and real iPad/Pencil testing.
+3. Test model loading on a WebGPU device; the current development machine may not expose a suitable browser GPU.
 
 ## Validation log
 
@@ -58,6 +57,7 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - 2026-07-11: Added raster 192px and 512px install icons for stronger iPad/Safari PWA compatibility and precached them for offline use.
 - 2026-07-11: Hardened service-worker updates: navigation is network-first, old Folio caches are removed on activation, and offline navigation falls back to the cached shell.
 - 2026-07-11: Latest full CI checkpoint `cd26361` passed. Updated checkout/setup-node Actions to v5 after GitHub flagged the v4 Node 20 runtime as deprecated.
+- 2026-07-11: With explicit approval, changed `kortexa-ai/folio` from private to public, enabled Pages with the Actions source, and set `PAGES_ENABLED=true`.
 
 ## Known risks / follow-ups
 
