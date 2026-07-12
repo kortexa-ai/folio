@@ -19,4 +19,4 @@ The deterministic tutor is always available. Enabling local AI downloads a revis
 
 ## Privacy
 
-No account, analytics, API key, or backend is used. Progress stays in `localStorage` unless the learner explicitly exports it.
+No account, analytics, API key, backend, or remote font request is used. Progress stays in `localStorage` unless the learner explicitly exports it, and versioned exports can be imported on another device.

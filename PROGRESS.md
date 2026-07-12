@@ -20,7 +20,7 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - Single-digit addition, non-negative subtraction, and multiplication progression.
 - Deterministic hints and automatic operation unlocking after five correct answers.
 - Pencil/touch scratchpad using Pointer Events, coalesced samples, pressure, and basic palm rejection.
-- Local progress, streak, reset, and JSON export.
+- Local progress, streak, reset, and validated, versioned JSON export/import.
 - Optional e-ink discipline mode.
 - Installable PWA manifest and offline app-shell service worker.
 - Optional WebGPU local tutor using `LiquidAI/LFM2.5-350M-ONNX` via Transformers.js.
@@ -54,6 +54,7 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - 2026-07-11: Production preview smoke-test passed for index, manifest, service worker, and hashed JS asset (all HTTP 200 with project-relative URLs).
 - 2026-07-11: GitHub Actions run `29179301833` passed tests and build after gating unavailable Pages deployment.
 - 2026-07-11: Transformers.js integration reviewed against model metadata: text-generation/WebGPU tags and Q4 ONNX files confirmed; inference moved to a Web Worker and revision pinned.
+- 2026-07-11: Added validated progress import and removed the only remote font dependency. Test suite now has 4 passing tests across arithmetic and storage behavior; production build passes.
 
 ## Known risks / follow-ups
 
@@ -61,4 +62,4 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - SVG PWA icons work in modern browsers but PNG 192/512 variants improve iOS compatibility.
 - Service worker is intentionally minimal; cache versioning should eventually incorporate the build hash.
 - Current scratchpad ink is session-only and is intentionally not exported or sent to the tutor.
-- Font CSS currently references Google Fonts; system fallbacks work offline, but bundling fonts would make appearance fully offline-consistent.
+- System font stacks keep the app fully independent of remote font services; a custom bundled typeface can be considered later.

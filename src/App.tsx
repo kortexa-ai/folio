@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { InkPad } from './InkPad';
 import { deterministicHint, formatProblem, makeProblem, nextOperation, type Problem } from './math';
 import { getLocalHint, loadTutor, MODEL_ID } from './localTutor';
-import { downloadProgress, loadProgress, saveProgress, type Progress } from './storage';
+import { downloadProgress, loadProgress, parseProgressExport, saveProgress, type Progress } from './storage';
 
 type Feedback = { kind: 'quiet' | 'good' | 'try'; text: string };
 
@@ -72,6 +72,12 @@ export default function App() {
         {modelMessage && <small className={modelStatus === 'error' ? 'error' : ''}>{modelMessage}</small>}
       </section>
       <button className="text-button" onClick={() => downloadProgress(progress)}>Export my progress</button>
+      <label className="import-button">Import progress<input type="file" accept="application/json,.json" onChange={async event => {
+        const file = event.target.files?.[0]; if (!file) return;
+        try { const imported = parseProgressExport(await file.text()); setProgress(imported); advance(imported); setMenu(false); }
+        catch (error) { alert(error instanceof Error ? error.message : 'Could not import that file.'); }
+        event.target.value = '';
+      }} /></label>
       <button className="text-button danger" onClick={() => { if (confirm('Erase all Folio progress?')) { localStorage.clear(); location.reload(); } }}>Start over</button>
     </aside>}
 

@@ -13,3 +13,14 @@ export const downloadProgress = (progress: Progress) => {
   const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, progress }, null, 2)], { type: 'application/json' }));
   const link = Object.assign(document.createElement('a'), { href: url, download: 'folio-progress.json' }); link.click(); URL.revokeObjectURL(url);
 };
+
+export function parseProgressExport(text: string): Progress {
+  const parsed = JSON.parse(text) as { version?: unknown; progress?: Partial<Progress> };
+  const value = parsed?.progress;
+  const operations = value?.solved;
+  const validCount = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+  if (parsed.version !== 1 || !operations || !validCount(operations.add) || !validCount(operations.subtract) || !validCount(operations.multiply) || !validCount(value.attempts) || !validCount(value.streak)) {
+    throw new Error('That file is not a valid Folio progress export.');
+  }
+  return { ...freshProgress(), ...value, solved: operations } as Progress;
+}
