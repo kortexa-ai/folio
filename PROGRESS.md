@@ -55,11 +55,11 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - 2026-07-11: GitHub Actions run `29179301833` passed tests and build after gating unavailable Pages deployment.
 - 2026-07-11: Transformers.js integration reviewed against model metadata: text-generation/WebGPU tags and Q4 ONNX files confirmed; inference moved to a Web Worker and revision pinned.
 - 2026-07-11: Added validated progress import and removed the only remote font dependency. Test suite now has 4 passing tests across arithmetic and storage behavior; production build passes.
+- 2026-07-11: Added raster 192px and 512px install icons for stronger iPad/Safari PWA compatibility and precached them for offline use.
 
 ## Known risks / follow-ups
 
 - Confirm the exact output shape and browser compatibility of Transformers.js 4.2 with the LFM chat pipeline on a WebGPU device.
-- SVG PWA icons work in modern browsers but PNG 192/512 variants improve iOS compatibility.
 - Service worker is intentionally minimal; cache versioning should eventually incorporate the build hash.
 - Current scratchpad ink is session-only and is intentionally not exported or sent to the tutor.
 - System font stacks keep the app fully independent of remote font services; a custom bundled typeface can be considered later.
