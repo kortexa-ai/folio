@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseTopic, EDGES, isMastered, isUnlocked, makeProblem, recordAttempt, TOPICS, topicById, type Mastery } from './curriculum';
+import { chooseTopic, EDGES, effectiveStrength, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, recordAttempt, TOPICS, topicById, type Mastery } from './curriculum';
 
 const seeded = (seed = 1) => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
@@ -40,6 +40,49 @@ describe('mastery and progression', () => {
       expect(isUnlocked(t.id, m)).toBe(true);
       m = recordAttempt(m, t.id, r() < 0.8, true);
     }
+  });
+});
+
+describe('memory strength and spaced review', () => {
+  const DAY = 24 * 3_600_000;
+  const master = (id: string, now: number) => {
+    let m: Mastery = {};
+    for (let i = 0; i < 4; i++) m = recordAttempt(m, id, true, true, { now });
+    return m;
+  };
+  it('strength builds on success, drops on misses, and decays over time', () => {
+    const now = 1_000_000;
+    let m = master('mt_OvyoRo47K-', now);
+    expect(m['mt_OvyoRo47K-'].strength).toBe(1);
+    expect(effectiveStrength(m['mt_OvyoRo47K-'], now)).toBe(1);
+    expect(effectiveStrength(m['mt_OvyoRo47K-'], now + 60 * DAY)).toBeLessThan(0.02);
+    m = recordAttempt(m, 'mt_OvyoRo47K-', false, false, { now });
+    expect(m['mt_OvyoRo47K-'].strength).toBe(0.8);
+  });
+  it('a freshly mastered topic is not due; a long-faded one is', () => {
+    const now = 1_000_000;
+    const m = master('mt_OvyoRo47K-', now);
+    expect(isReviewDue(m['mt_OvyoRo47K-'], now + DAY)).toBe(false);
+    expect(isReviewDue(m['mt_OvyoRo47K-'], now + 60 * DAY)).toBe(true);
+  });
+  it('chooseTopic serves the faded review even when fresh topics remain', () => {
+    const now = 1_000_000;
+    const m = master('mt_OvyoRo47K-', now);
+    const later = now + 60 * DAY;
+    // random() = 0 → takes the review branch whenever a review is due
+    expect(chooseTopic(m, () => 0, later).id).toBe('mt_OvyoRo47K-');
+    // random() high → sticks with fresh material
+    expect(isMastered(m[chooseTopic(m, () => 0.99, later).id])).toBe(false);
+  });
+  it('detects struggle after repeated misses and offers a prerequisite warm-up', () => {
+    const now = 1_000_000;
+    let m = { ...master('mt_OvyoRo47K-', now), ...master('mt_zuKAX6lcYR', now), ...master('mt_e8CZ7E5qW7', now) };
+    m = { ...m, ...master('mt_ghF3Vv6taM', now), ...master('mt_PgsHGYJMH-', now), ...master('mt_yJmvUCCym7', now) };
+    // now 'Quick facts to 10' (needs bonds + fluency-5) is unlocked; miss it repeatedly
+    for (let i = 0; i < 4; i++) m = recordAttempt(m, 'mt__we2TDqnJx', false, false, { now });
+    expect(isStruggling(m['mt__we2TDqnJx'])).toBe(true);
+    const warmup = chooseTopic(m, () => 0, now);
+    expect(['mt_e8CZ7E5qW7', 'mt_ghF3Vv6taM']).toContain(warmup.id);
   });
 });
 

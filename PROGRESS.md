@@ -1,6 +1,6 @@
 # Folio build log and handoff
 
-Last updated: 2026-07-13 (America/Los_Angeles)
+Last updated: 2026-07-13 (America/Los_Angeles) — v4
 
 ## Goal
 
@@ -114,3 +114,49 @@ notebook page that writes back (think the enchanted diary, not a quiz form).
 - Known follow-ups: local-brain auto-suggest on capable devices; sending the actual ink image to
   multimodal cloud tutors (the concept doc's HWR wildcard); illustration count-accuracy for story
   scenes; real-device Pencil latency pass.
+
+## v4: the notebook remembers + little-brain weave (2026-07-13)
+
+**Progress tracking (storage v3, mastery model v2).**
+- Per-topic **memory strength** with exponential decay whose half-life grows with practice
+  (`effectiveStrength`); mastered chapters come back "for a polish" when they fade
+  (`isReviewDue` → scheduler), replacing the old random 18% review.
+- Per-topic outcome **history ring buffer** → struggle detection (≥4 misses in last 6);
+  the scheduler answers struggle with a **warm-up on the weakest prerequisite** (35% chance).
+- **Sessions** (30-minute gap rule; solved/misses/hints; capped at 40) → "days written";
+  per-topic **time-on-task** (page-shown → solved, capped 5 min/page) and hint counts.
+- Migrations: v1 → v3 and v2 → v3 (strength derived from mastery state); real-UI migration
+  verified by loading a v2 record into localStorage in the browser.
+- Kid-facing: mastery **streak dots** under the chapter script (★ once mastered), a hand-drawn
+  **star flourish** on the mastery moment, contents rows with ★ / "we are here" / "time for a
+  polish" / "tricky right now", days-written line. Grown-up-facing: a **For grown-ups** section
+  in settings — per-chapter accuracy, minutes, hints, ★/⚑ flags.
+
+**UX.**
+- **Scribble-to-erase**: a vigorous zigzag (≥5 direction reversals, path ≫ box) over ink fades it
+  away; a single strike-through or an 8 stays (crossed-out work is signal, per the concept doc).
+- **Legibility bands** on circled answers, measured against synthetic scrawl: confident reads
+  (<0.8) record attempts; uncertain reads (0.8–1.4) get an answer but never touch the mastery
+  model; illegible or 3+-digit reads stay silent unless they look like a deliberate answer
+  (≤4 strokes, tall) — so the arrays/represent chapters, which literally ask kids to circle
+  groups of dots, no longer poison mastery with garbage attempts.
+- **Idle whisper**: an untouched page murmurs one kind, kind-specific way to start after ~40s
+  (`folio-idle-ms` localStorage override for testing).
+- Review pages announce themselves ("Let's flip back to X — just to keep it shiny").
+
+**Little brain, woven in (not bolted on).**
+- Worker upgraded to a general `generate` API behind a **sequential queue** (interleaved
+  generation on one pipeline is unsafe); tutor module tracks `isAwake`, worker is now lazy.
+- `src/voice.ts`: the brain **retells story problems** around the learner's favorite things
+  (new "stories about…" setting) and **pre-writes praise quips** — all prefetched into pools
+  during the learner's thinking time (zero added latency), all validated hard
+  (`acceptRewrite`: exact numbers preserved, none added, answer never leaked, question intact,
+  length caps; `acceptQuip`: short, number-free) with instant deterministic fallback. The model
+  never decides math; retold stories get neutral hints so guidance stays coherent.
+- Enablement is now **persistent** (`folio-brain`) — the brain wakes with the notebook.
+- Escalation seam unchanged: deterministic → local brain → BYOK cloud.
+
+Tests: 60 across curriculum/scheduler, recognizer/gestures/legibility, storage/sessions,
+voice validators, and cloud builders. Verified in-browser end-to-end (erase, silent group
+circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
+WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { detectAnswerCircle, groupStrokes, isQuestionMark, recognizeDigit, recognizeNumber, type Stroke } from './recognizer';
+import { detectAnswerCircle, detectScratchOut, groupStrokes, isConfident, isLegible, isQuestionMark, recognizeDigit, recognizeNumber, type Stroke } from './recognizer';
+
+const wobble = (s: Stroke, amp: number, seed = 7): Stroke => {
+  let x = seed;
+  const rnd = () => ((x = (x * 1103515245 + 12345) % 2 ** 31) / 2 ** 31 - 0.5) * 2;
+  return s.map(p => ({ x: p.x + rnd() * amp, y: p.y + rnd() * amp }));
+};
 
 const line = (x1: number, y1: number, x2: number, y2: number, n = 14): Stroke =>
   Array.from({ length: n }, (_, i) => ({ x: x1 + (x2 - x1) * i / (n - 1), y: y1 + (y2 - y1) * i / (n - 1) }));
@@ -78,5 +84,57 @@ describe('question-mark gesture', () => {
   });
   it('does not mistake a 0 for a question mark', () => {
     expect(isQuestionMark([arc(150, 150, 28, 42, -90, 268, 24)])).toBe(false);
+  });
+});
+
+describe('scratch-out gesture', () => {
+  const scribble = (): Stroke => {
+    const s: Stroke = [];
+    for (let i = 0; i < 7; i++) {
+      const y = 115 + i * 11;
+      s.push(...(i % 2 === 0 ? line(128, y, 232, y + 6, 7) : line(232, y, 128, y + 6, 7)));
+    }
+    return s;
+  };
+  const victim: Stroke = [...line(160, 118, 200, 116), ...line(200, 116, 172, 188)];
+  const far: Stroke = line(400, 400, 402, 470);
+  it('a vigorous scribble erases the ink beneath it and nothing else', () => {
+    expect(detectScratchOut(scribble(), [victim, far])).toEqual([victim]);
+  });
+  it('scribbling on empty paper keeps the ink (it might be art)', () => {
+    expect(detectScratchOut(scribble(), [far])).toBeNull();
+  });
+  it('an 8, a ring, and a single strike-through are not scratches', () => {
+    const digit8: Stroke = [...arc(150, 128, 22, 22, -90, 200), ...arc(150, 174, 26, 25, -160, 250)];
+    expect(detectScratchOut(digit8, [victim])).toBeNull();
+    expect(detectScratchOut(arc(180, 150, 50, 44, -90, 260, 24), [victim])).toBeNull();
+    expect(detectScratchOut(line(150, 150, 210, 152, 12), [victim])).toBeNull();
+  });
+});
+
+describe('legibility bands', () => {
+  it('slightly wobbly digits are confident; very shaky ones stay legible', () => {
+    const seven = (amp: number) => wobble([...line(122, 108, 180, 108), ...line(180, 108, 142, 196)], amp);
+    const neat = recognizeNumber([seven(3)])!;
+    expect(neat.value).toBe(7);
+    expect(isConfident(neat)).toBe(true);
+    const shaky = recognizeNumber([seven(5)])!;
+    expect(shaky.value).toBe(7);
+    expect(isLegible(shaky)).toBe(true);
+  });
+  it('a squiggle is not even legible', () => {
+    const squiggle = wobble(arc(200, 150, 40, 20, 0, 500, 30), 14, 3);
+    const guess = recognizeNumber([squiggle])!;
+    expect(isLegible(guess)).toBe(false);
+  });
+  it('three tally sticks read as a 3-digit number and are dismissed as illegible', () => {
+    const guess = recognizeNumber([line(150, 140, 152, 180, 8), line(170, 141, 171, 181, 8), line(190, 139, 192, 180, 8)])!;
+    expect(guess.value).toBe(111);
+    expect(isLegible(guess)).toBe(false);
+  });
+  it('a cluster of dots is legible but not confident (answered, never recorded)', () => {
+    const dots = [arc(150, 150, 5, 5, 0, 330, 6), arc(190, 152, 5, 5, 0, 330, 6), arc(230, 149, 5, 5, 0, 330, 6)];
+    const guess = recognizeNumber(dots)!;
+    expect(isConfident(guess)).toBe(false);
   });
 });

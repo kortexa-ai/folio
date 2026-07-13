@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { detectAnswerCircle, isQuestionMark, type Stroke } from './recognizer';
+import { detectAnswerCircle, detectScratchOut, isQuestionMark, type Stroke } from './recognizer';
 
 type InkStroke = {
   points: { x: number; y: number; pressure: number }[];
@@ -14,11 +14,13 @@ export type InkPadProps = {
   onCircleAnswer: (enclosed: Stroke[]) => void;
   /** A question mark was drawn — the learner is asking for a hint. */
   onQuestionMark: () => void;
+  /** The pen touched the page (used for idle detection). */
+  onActivity?: () => void;
 };
 
 const FADE_MS = 650;
 
-export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark }: InkPadProps) {
+export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark, onActivity }: InkPadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokes = useRef<InkStroke[]>([]);
   const active = useRef<InkStroke | null>(null);
@@ -101,13 +103,17 @@ export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark }: In
     return events.map(e => ({ x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.35 }));
   };
 
-  /** Gesture pass, run when a stroke finishes: answer ring first, then question mark. */
+  /** Gesture pass, run when a stroke finishes: answer ring, then scratch-out, then question mark. */
   const interpret = (finished: InkStroke) => {
     const others = strokes.current.filter(s => s !== finished && s.fadeStart == null && s.kind === 'ink');
     const enclosed = detectAnswerCircle(finished.points, others.map(s => s.points));
     if (enclosed) {
       finished.kind = 'ring';
       return onCircleAnswer(enclosed);
+    }
+    const scratched = detectScratchOut(finished.points, others.map(s => s.points));
+    if (scratched) {
+      return absorb([finished, ...strokes.current.filter(s => scratched.includes(s.points))]);
     }
     const previous = lastEnd.current;
     const groups: InkStroke[][] = [[finished]];
@@ -126,10 +132,11 @@ export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark }: In
     <canvas
       ref={canvasRef}
       className="ink"
-      aria-label="Notebook page — write anywhere. Circle your answer to hand it in; draw a question mark for a hint."
+      aria-label="Notebook page — write anywhere. Circle your answer to hand it in; draw a question mark for a hint; scribble hard over ink to erase it."
       onPointerDown={event => {
         if (event.pointerType === 'touch' && penActive.current) return; // palm rejection
         if (event.pointerType === 'pen') penActive.current = true;
+        onActivity?.();
         event.currentTarget.setPointerCapture(event.pointerId);
         active.current = { points: localPoints(event), kind: 'ink' };
         strokes.current.push(active.current);

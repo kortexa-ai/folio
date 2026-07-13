@@ -107,13 +107,44 @@ export const EDGES: Edge[] = [
 export const topicById = new Map(TOPICS.map(t => [t.id, t]));
 
 // --- Mastery model -----------------------------------------------------------
+// Each topic carries a decaying memory strength (spaced review resurfaces
+// topics as they fade), a short outcome history (struggle detection), and
+// time-on-task — the seed of the parent/teacher view in the concept doc.
 
-export type TopicMastery = { attempts: number; correct: number; streak: number; lastSeen: number };
+export type Outcome = { c: 0 | 1; h: number; t: number };  // correct?, hints used, when
+export type TopicMastery = {
+  attempts: number; correct: number; streak: number; lastSeen: number;
+  strength: number;        // 0..1 memory strength at lastSeen
+  hints: number;           // total hints asked on this topic
+  ms: number;              // time-on-task, capped per page
+  history: Outcome[];      // last few outcomes, newest last
+};
 export type Mastery = Record<string, TopicMastery>;
 
 export const MASTERY_STREAK = 4;
-export const freshTopicMastery = (): TopicMastery => ({ attempts: 0, correct: 0, streak: 0, lastSeen: 0 });
+const HISTORY_KEEP = 8;
+const PAGE_MS_CAP = 5 * 60_000;
+const DAY = 24 * 3_600_000;
+
+export const freshTopicMastery = (): TopicMastery =>
+  ({ attempts: 0, correct: 0, streak: 0, lastSeen: 0, strength: 0, hints: 0, ms: 0, history: [] });
+
 export const isMastered = (m?: TopicMastery) => !!m && (m.streak >= MASTERY_STREAK || (m.correct >= 6 && m.correct / m.attempts >= 0.8));
+
+/** Memory strength now: exponential decay whose half-life grows with practice. */
+export function effectiveStrength(m: TopicMastery, now = Date.now()): number {
+  if (!m.lastSeen) return m.strength;
+  const halfLifeDays = Math.min(2 + m.correct * 1.5, 30);
+  return m.strength * Math.pow(2, -((now - m.lastSeen) / DAY) / halfLifeDays);
+}
+
+/** A mastered topic whose memory has faded is due for a gentle review. */
+export const isReviewDue = (m: TopicMastery | undefined, now = Date.now()): boolean =>
+  !!m && isMastered(m) && effectiveStrength(m, now) < 0.55;
+
+/** Mostly-wrong lately (≥4 misses in the last 6 outcomes) → this topic hurts. */
+export const isStruggling = (m?: TopicMastery): boolean =>
+  !!m && m.history.slice(-6).filter(o => o.c === 0).length >= 4;
 
 export const isUnlocked = (topicId: string, mastery: Mastery) =>
   EDGES.filter(e => e.topicId === topicId).every(e => isMastered(mastery[e.prerequisiteId]));
@@ -122,24 +153,51 @@ export function unlockedTopics(mastery: Mastery): Topic[] {
   return TOPICS.filter(t => isUnlocked(t.id, mastery));
 }
 
-/** Pick what to work on: the easiest unmastered unlocked topic,
- *  with an occasional spaced review of the least-recently-seen mastered one. */
-export function chooseTopic(mastery: Mastery, random = Math.random): Topic {
+/**
+ * Pick what to work on:
+ *  1. if the current work hurts, sometimes flip back for a warm-up on its weakest prerequisite;
+ *  2. sometimes serve a review of the most-faded mastered topic that is due;
+ *  3. otherwise the easiest unmastered unlocked topic.
+ */
+export function chooseTopic(mastery: Mastery, random = Math.random, now = Date.now()): Topic {
   const unlocked = unlockedTopics(mastery);
-  const fresh = unlocked.filter(t => !isMastered(mastery[t.id]));
-  const mastered = unlocked.filter(t => isMastered(mastery[t.id]));
-  if (mastered.length && (fresh.length === 0 || random() < 0.18)) {
-    return mastered.sort((a, b) => (mastery[a.id]?.lastSeen ?? 0) - (mastery[b.id]?.lastSeen ?? 0))[0];
+  const fresh = unlocked
+    .filter(t => !isMastered(mastery[t.id]))
+    .sort((a, b) => a.ageRangeStart - b.ageRangeStart || a.ageRangeEnd - b.ageRangeEnd);
+  const struggling = fresh.find(t => isStruggling(mastery[t.id]));
+  if (struggling && random() < 0.35) {
+    const warmups = EDGES.filter(e => e.topicId === struggling.id)
+      .map(e => topicById.get(e.prerequisiteId)!)
+      .filter(t => isMastered(mastery[t.id]))
+      .sort((a, b) => effectiveStrength(mastery[a.id], now) - effectiveStrength(mastery[b.id], now));
+    if (warmups.length) return warmups[0];
   }
-  return fresh.sort((a, b) => a.ageRangeStart - b.ageRangeStart || a.ageRangeEnd - b.ageRangeEnd)[0] ?? unlocked[0] ?? TOPICS[0];
+  const due = unlocked
+    .filter(t => isReviewDue(mastery[t.id], now))
+    .sort((a, b) => effectiveStrength(mastery[a.id], now) - effectiveStrength(mastery[b.id], now));
+  if (due.length && (fresh.length === 0 || random() < 0.35)) return due[0];
+  return fresh[0] ?? unlocked[0] ?? TOPICS[0];
 }
 
-export function recordAttempt(mastery: Mastery, topicId: string, correct: boolean, firstTry: boolean): Mastery {
+export function recordAttempt(
+  mastery: Mastery, topicId: string, correct: boolean, firstTry: boolean,
+  extra: { hints?: number; ms?: number; now?: number } = {},
+): Mastery {
+  const now = extra.now ?? Date.now();
   const m = { ...(mastery[topicId] ?? freshTopicMastery()) };
   m.attempts += 1;
-  m.lastSeen = Date.now();
-  if (correct) { m.correct += 1; m.streak = firstTry ? m.streak + 1 : m.streak; }
-  else m.streak = 0;
+  m.lastSeen = now;
+  m.hints += extra.hints ?? 0;
+  m.ms += Math.min(extra.ms ?? 0, PAGE_MS_CAP);
+  if (correct) {
+    m.correct += 1;
+    m.streak = firstTry ? m.streak + 1 : m.streak;
+    m.strength = Math.min(1, m.strength + (firstTry ? 0.25 : 0.15));
+  } else {
+    m.streak = 0;
+    m.strength = Math.max(0, m.strength - 0.2);
+  }
+  m.history = [...m.history, { c: correct ? 1 : 0 as 0 | 1, h: extra.hints ?? 0, t: now }].slice(-HISTORY_KEEP);
   return { ...mastery, [topicId]: m };
 }
 

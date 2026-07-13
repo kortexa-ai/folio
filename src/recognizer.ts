@@ -204,6 +204,56 @@ export function isQuestionMark(strokes: Stroke[]): boolean {
   return question < digit * 0.9 && question < 3.2;
 }
 
+/**
+ * A vigorous scribble over existing ink erases it. Requires real back-and-forth
+ * (many direction reversals + a path much longer than its box), so a single
+ * cross-out stroke or an 8 stays on the page. Returns the strokes to erase.
+ */
+export function detectScratchOut(candidate: Stroke, others: Stroke[]): Stroke[] | null {
+  if (candidate.length < 10) return null;
+  const b = bounds(candidate);
+  const w = b.maxX - b.minX, h = b.maxY - b.minY;
+  const diag = Math.hypot(w, h);
+  if (diag < 24) return null;
+  if (pathLength(candidate) / diag < 2.9) return null;
+  const reversals = (axis: 'x' | 'y') => {
+    let flips = 0, direction = 0;
+    for (let i = 1; i < candidate.length; i++) {
+      const d = candidate[i][axis] - candidate[i - 1][axis];
+      if (Math.abs(d) < 2) continue;
+      const s = Math.sign(d);
+      if (direction !== 0 && s !== direction) flips++;
+      direction = s;
+    }
+    return flips;
+  };
+  if (Math.max(reversals('x'), reversals('y')) < 5) return null;
+  const victims = others.filter(s => {
+    const v = bounds(s);
+    const ix = Math.max(0, Math.min(b.maxX, v.maxX) - Math.max(b.minX, v.minX));
+    const iy = Math.max(0, Math.min(b.maxY, v.maxY) - Math.max(b.minY, v.minY));
+    const area = Math.max((v.maxX - v.minX) * (v.maxY - v.minY), 1);
+    return (ix * iy) / area >= 0.5;
+  });
+  return victims.length ? victims : null;
+}
+
+// Score bands measured against template + wobbled synthetic ink: real digits
+// land ≤ ~1.0, doodles/squiggles ≥ ~1.7. Between the bands we answer without
+// recording an attempt, so group-drawings never poison the mastery model.
+export const CONFIDENT_SCORE = 0.8;
+export const LEGIBLE_SCORE = 1.4;
+
+export const worstScore = (guess: NumberGuess): number =>
+  Math.max(...guess.digits.map(d => d[0].score));
+
+/** Trustworthy enough to record an attempt against mastery. */
+export const isConfident = (guess: NumberGuess): boolean => worstScore(guess) < CONFIDENT_SCORE;
+
+/** Readable enough to say something about at all (may still be a misread). */
+export const isLegible = (guess: NumberGuess): boolean =>
+  worstScore(guess) < LEGIBLE_SCORE && guess.digits.length <= 2;
+
 /** Alternative readings of the number, for "did you mean" correction chips. */
 export function alternatives(guess: NumberGuess, count = 3): number[] {
   const alts = new Set<number>();

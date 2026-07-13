@@ -98,6 +98,18 @@ button { cursor: pointer; }
   font-family: var(--hand); font-size: 15px; color: var(--diary-soft);
 }
 .chapter-script:hover { color: var(--diary); text-decoration: underline dotted; text-underline-offset: 4px; }
+.chapter-dots { display: flex; justify-content: center; align-items: center; gap: 5px; margin-top: 3px; min-height: 8px; color: var(--good); font-size: 11px; }
+.chapter-dots i { width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--diary-soft); }
+.chapter-dots i.filled { background: var(--good); border-color: var(--good); }
+
+/* A star the notebook draws for a freshly mastered chapter. */
+.flourish {
+  position: absolute; top: 34%; left: 50%; width: 130px; height: 130px;
+  transform: translateX(-50%) rotate(-8deg); color: var(--good); pointer-events: none; z-index: 4;
+}
+.flourish path { stroke-dasharray: 100; stroke-dashoffset: 100; animation: drawstar 1s ease-out forwards; }
+@keyframes drawstar { to { stroke-dashoffset: 0; } }
+html[data-eink='true'] .flourish path { stroke-dashoffset: 0; }
 
 .ribbon {
   position: absolute; top: 0; right: 34px; width: 30px; height: 66px; z-index: 6; border: 0; padding: 0;
@@ -145,6 +157,13 @@ button { cursor: pointer; }
 .toggle span { display: flex; flex-direction: column; gap: 3px; }
 .toggle small { font-size: 11px; color: #8a8270; }
 .toggle select { border: 0; border-bottom: 1.5px dashed #c6bca1; background: transparent; padding: 4px 2px; font-size: 13px; }
+.toggle .interests { border: 0; border-bottom: 1.5px dashed #c6bca1; background: transparent; padding: 4px 2px; font-size: 13px; width: 45%; outline: none; }
+.toggle .interests:focus { border-bottom-color: var(--diary); border-bottom-style: solid; }
+
+.grownups { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+.grownups th { text-align: left; font-family: var(--hand); font-weight: 600; color: var(--diary); padding: 4px 6px 4px 0; border-bottom: 1px solid #d8cdb2; }
+.grownups td { padding: 5px 6px 5px 0; border-bottom: 1px dotted #e4dbc4; color: #6c6350; }
+.grownups td:last-child { color: var(--gentle); font-family: var(--hand); }
 
 .provider { display: grid; grid-template-columns: 92px 1fr; gap: 4px 12px; align-items: center; padding: 7px 0; }
 .provider-name { grid-row: span 2; display: flex; flex-direction: column; gap: 2px; font-family: var(--hand); font-size: 14px; color: var(--diary); }
