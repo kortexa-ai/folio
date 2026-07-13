@@ -176,6 +176,11 @@ export function chooseTopic(mastery: Mastery, random = Math.random, now = Date.n
     .filter(t => isReviewDue(mastery[t.id], now))
     .sort((a, b) => effectiveStrength(mastery[a.id], now) - effectiveStrength(mastery[b.id], now));
   if (due.length && (fresh.length === 0 || random() < 0.35)) return due[0];
+  // Interleave: drilling one chapter page after page reads as "it keeps asking
+  // the same thing" — when several chapters are open, sometimes visit another.
+  if (fresh.length > 1 && random() < 0.3) {
+    return fresh[1 + Math.floor(random() * (fresh.length - 1))];
+  }
   return fresh[0] ?? unlocked[0] ?? TOPICS[0];
 }
 
@@ -225,7 +230,23 @@ const THINGS = [
 const ri = (lo: number, hi: number, r: () => number) => lo + Math.floor(r() * (hi - lo + 1));
 const pick = <T,>(arr: T[], r: () => number) => arr[Math.floor(r() * arr.length)];
 
-export function makeProblem(topic: Topic, random = Math.random): Problem {
+/** What makes two problem instances "the same page" in a child's eyes. */
+export const problemSignature = (p: Problem): string => p.equation ?? p.statement;
+
+/**
+ * A fresh problem that isn't one of the recently seen instances. Small
+ * parameter spaces (nine bonds to ten…) repeat quickly under pure chance,
+ * and children spot "it asked me 8 + 2 again" immediately.
+ */
+export function makeProblem(topic: Topic, random = Math.random, avoid?: ReadonlySet<string>): Problem {
+  let problem = generateProblem(topic, random);
+  for (let i = 0; i < 12 && avoid?.has(problemSignature(problem)); i++) {
+    problem = generateProblem(topic, random);
+  }
+  return problem;
+}
+
+function generateProblem(topic: Topic, random: () => number): Problem {
   const r = random;
   const name = pick(NAMES, r);
   const thing = pick(THINGS, r);

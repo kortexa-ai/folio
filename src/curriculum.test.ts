@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseTopic, EDGES, effectiveStrength, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, recordAttempt, TOPICS, topicById, type Mastery } from './curriculum';
+import { chooseTopic, EDGES, effectiveStrength, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, problemSignature, recordAttempt, TOPICS, topicById, type Mastery } from './curriculum';
 
 const seeded = (seed = 1) => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
@@ -107,5 +107,26 @@ describe('problem generation', () => {
     const topic = topicById.get('mt_yJmvUCCym7')!;
     const statements = new Set(Array.from({ length: 30 }, () => makeProblem(topic, r).statement));
     expect(statements.size).toBeGreaterThan(10);
+  });
+  it('never repeats a recently seen instance ("it asked me 8 + 2 again")', () => {
+    const bonds = topicById.get('mt_e8CZ7E5qW7')!; // only nine possible pages
+    const r = seeded(5);
+    const recent: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      const p = makeProblem(bonds, r, new Set(recent));
+      expect(recent).not.toContain(problemSignature(p));
+      recent.push(problemSignature(p));
+      if (recent.length > 4) recent.shift();
+    }
+  });
+});
+
+describe('interleaving', () => {
+  const seq = (...values: number[]) => { let i = 0; return () => values[Math.min(i++, values.length - 1)]; };
+  it('sometimes visits another open chapter instead of drilling one', () => {
+    // fresh notebook: three chapters open; draws → interleave branch, second pick
+    const other = chooseTopic({}, seq(0.1, 0.9));
+    expect(other.id).not.toBe(chooseTopic({}, () => 0.99).id);
+    expect(isUnlocked(other.id, {})).toBe(true);
   });
 });

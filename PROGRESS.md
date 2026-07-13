@@ -161,6 +161,22 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v4.5: variety — no more "8 + 2 again" (2026-07-13)
+
+Field report #2 (pilot is on an **iPhone** — no iPad tested yet): "Making ten was too
+repeating and stuck on only asking about the 8+2 combo." Also confirms v4.2 worked: no
+crashes, the 230M model loads on the phone.
+
+- `makeProblem` now takes an avoid-set of recently seen instances (`problemSignature`) and
+  re-rolls up to 12 times; the app remembers the last 4 signatures per topic. Bonds-to-ten has
+  only nine possible pages, so under pure chance repeats were common — and children clock
+  "it asked me the same one" instantly.
+- `chooseTopic` now **interleaves**: when several chapters are open, ~30% of pages visit
+  another open chapter instead of drilling one to mastery. (Streaks are per-topic, so
+  interleaving costs nothing — and interleaved practice is the better pedagogy anyway.)
+- Open question for the model-silence thread: journal breadcrumbs shipped in v4.4 will show
+  the voice pipeline's accept/reject rate once a journal paste arrives.
+
 ## v4.4: field fixes from the first real kid pages (2026-07-13)
 
 Two pilot screenshots (iPhone Safari) surfaced real stuck states — no crashes; the brain loads.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { InkPad, type InkPadHandle } from './InkPad';
-import { chooseTopic, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
+import { chooseTopic, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, problemSignature, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
 import { alternatives, isConfident, isLegible, recognizeNumber, type Stroke } from './recognizer';
 import { getLocalHint, loadTutor, MODEL_ID, sleepTutor, tookDownLastSession } from './localTutor';
 import { prefetchQuip, prefetchStory, takeQuip, takeStory } from './voice';
@@ -70,6 +70,7 @@ export default function App() {
   const idleTimer = useRef(0);
   const resetTimer = useRef(0);
   const pad = useRef<InkPadHandle>(null);
+  const recentPages = useRef<Record<string, string[]>>({}); // last few problem signatures per topic
 
   // Opening/closing a panel always disarms the reset and clears stale errors.
   useEffect(() => { setResetArmed(false); setImportError(''); setJournalOpen(false); setJournalCopied('idle'); clearTimeout(resetTimer.current); }, [panel]);
@@ -121,6 +122,9 @@ export default function App() {
   // cheer for this one) while the learner thinks.
   useEffect(() => {
     pageShownAt.current = Date.now();
+    const seen = (recentPages.current[problem.topicId] ??= []);
+    const signature = problemSignature(problem);
+    if (!seen.includes(signature)) { seen.push(signature); if (seen.length > 4) seen.shift(); }
     if (modelStatus === 'ready') {
       prefetchQuip(problem);
       prefetchStory(chooseTopic(progress.mastery), interests);
@@ -163,7 +167,7 @@ export default function App() {
     const nextTopic = chooseTopic(updated.mastery);
     const pooled = takeStory(nextTopic.id);
     setTopic(nextTopic);
-    setProblem(pooled ?? makeProblem(nextTopic));
+    setProblem(pooled ?? makeProblem(nextTopic, Math.random, new Set(recentPages.current[nextTopic.id] ?? [])));
     setTries(0); setHints(0); setLastRead(null); setClearSignal(n => n + 1); setFlourish(false);
     locked.current = false;
     const review = isReviewDue(updated.mastery[nextTopic.id]);
