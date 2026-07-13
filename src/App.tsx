@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { InkPad } from './InkPad';
+import { InkPad, type InkPadHandle } from './InkPad';
 import { chooseTopic, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
 import { alternatives, isConfident, isLegible, recognizeNumber, type Stroke } from './recognizer';
 import { getLocalHint, loadTutor, MODEL_ID, sleepTutor } from './localTutor';
@@ -32,7 +32,9 @@ function Handwrite({ text }: { text: string }) {
 }
 
 const illustrationPrompt = (problem: Problem) => {
-  const scene = problem.statement.replace(/[^.!]*\?\s*$/, '').trim();
+  // Drop the question and blur the counts — a drawing with the wrong number
+  // of apples would quietly contradict the math.
+  const scene = problem.statement.replace(/[^.!]*\?\s*$/, '').trim().replace(/\b\d+\b/g, 'some');
   return `A child's small crayon drawing in the corner of a paper notebook: ${scene} Sweet, simple shapes, warm colors, plain cream paper background. No words, letters, or numbers.`;
 };
 
@@ -61,6 +63,7 @@ export default function App() {
   const locked = useRef(false);
   const pageShownAt = useRef(Date.now());
   const idleTimer = useRef(0);
+  const pad = useRef<InkPadHandle>(null);
 
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
@@ -212,8 +215,12 @@ export default function App() {
     if (activeBrain(cloud) && (n >= 2 || tries >= 2)) {
       setNote({ tone: 'thinking', text: 'One moment — I know a wiser friend…' });
       try {
-        const asked = `Problem: ${formatForTutor(problem)}. The child has tried ${tries} time(s)${lastRead != null ? `, last circling ${lastRead}` : ''}, and is asking for hint number ${n}. Give one gentle nudge.`;
-        const text = await askCloud(cloud, CLOUD_SYSTEM_PROMPT, asked);
+        // Show the tutor the page itself: their working, drawings, crossings-out.
+        const ink = pad.current?.snapshot() ?? undefined;
+        const asked = `Problem: ${formatForTutor(problem)}. The child has tried ${tries} time(s)${lastRead != null ? `, last circling ${lastRead}` : ''}, and is asking for hint number ${n}. ` +
+          (ink ? 'Attached is a photo of their actual page — look at what they really wrote or drew (their marks, groups, crossings-out) and ground your nudge in it. ' : '') +
+          'Give one gentle nudge.';
+        const text = await askCloud(cloud, CLOUD_SYSTEM_PROMPT, asked, ink);
         if (text) return setNote({ tone: 'muse', text });
       } catch { /* fall through to the local brain */ }
     }
@@ -254,7 +261,7 @@ export default function App() {
     {flash && <div className="eink-flash" aria-hidden />}
 
     <div className={`leaf ${phase !== 'idle' ? phase : ''}`}>
-      <InkPad clearSignal={clearSignal} eink={eink} onCircleAnswer={onCircleAnswer} onQuestionMark={hint}
+      <InkPad ref={pad} clearSignal={clearSignal} eink={eink} onCircleAnswer={onCircleAnswer} onQuestionMark={hint}
         onActivity={() => clearTimeout(idleTimer.current)} />
       <div className="overlay">
         <div className={`problem ${art ? 'with-art' : ''}`} aria-live="polite">

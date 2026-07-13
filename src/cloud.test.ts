@@ -70,6 +70,31 @@ describe('chat requests', () => {
   });
 });
 
+describe('showing the tutor the page', () => {
+  const INK = 'data:image/jpeg;base64,AAAABBBB';
+  it('attaches the page photo as an Anthropic image block before the text', () => {
+    const { init } = buildChatRequest('anthropic', 'k', 'claude-sonnet-5', 'sys', 'look at this', INK);
+    const body = JSON.parse(init.body as string);
+    expect(body.messages[0].content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAABBBB' } },
+      { type: 'text', text: 'look at this' },
+    ]);
+  });
+  it('attaches the page photo as an image_url part for OpenAI-style providers', () => {
+    const { init } = buildChatRequest('xai', 'k', 'grok-4-fast', 'sys', 'look at this', INK);
+    const body = JSON.parse(init.body as string);
+    expect(body.messages[1].content).toEqual([
+      { type: 'image_url', image_url: { url: INK } },
+      { type: 'text', text: 'look at this' },
+    ]);
+    expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' });
+  });
+  it('keeps plain string content when no image is attached', () => {
+    const { init } = buildChatRequest('anthropic', 'k', 'claude-sonnet-5', 'sys', 'hello');
+    expect(JSON.parse(init.body as string).messages[0].content).toBe('hello');
+  });
+});
+
 describe('image requests', () => {
   it('builds a gpt-image call and reads back a data URL', () => {
     const { url, init } = buildImageRequest('openai', 'key-1', 'gpt-image-1', 'three apples');

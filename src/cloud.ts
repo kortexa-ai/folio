@@ -70,8 +70,18 @@ const OPENAI_STYLE_URLS: Record<Exclude<ChatProviderId, 'anthropic'>, string> = 
   openrouter: 'https://openrouter.ai/api/v1/chat/completions',
 };
 
-export function buildChatRequest(provider: ChatProviderId, key: string, model: string, system: string, user: string): { url: string; init: RequestInit } {
+/**
+ * Build a chat call, optionally attaching an image (a photo of the notebook
+ * page, as a data URL) so the tutor can see the child's actual working.
+ */
+export function buildChatRequest(provider: ChatProviderId, key: string, model: string, system: string, user: string, image?: string): { url: string; init: RequestInit } {
   if (provider === 'anthropic') {
+    const content = image
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: image.slice(5, image.indexOf(';')), data: image.slice(image.indexOf(',') + 1) } },
+          { type: 'text', text: user },
+        ]
+      : user;
     return {
       url: 'https://api.anthropic.com/v1/messages',
       init: {
@@ -82,16 +92,19 @@ export function buildChatRequest(provider: ChatProviderId, key: string, model: s
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: JSON.stringify({ model, max_tokens: 300, system, messages: [{ role: 'user', content: user }] }),
+        body: JSON.stringify({ model, max_tokens: 300, system, messages: [{ role: 'user', content }] }),
       },
     };
   }
+  const content = image
+    ? [{ type: 'image_url', image_url: { url: image } }, { type: 'text', text: user }]
+    : user;
   return {
     url: OPENAI_STYLE_URLS[provider],
     init: {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+      body: JSON.stringify({ model, messages: [{ role: 'system', content: system }, { role: 'user', content }] }),
     },
   };
 }
@@ -142,11 +155,23 @@ async function call(url: string, init: RequestInit, timeoutMs: number): Promise<
   return response.json();
 }
 
-/** Ask the configured wiser friend one question. Throws on any failure. */
-export async function askCloud(settings: CloudSettings, system: string, user: string): Promise<string> {
+/**
+ * Ask the configured wiser friend one question, optionally showing it the
+ * page. If a call with an image fails (some models can't see), it quietly
+ * retries once as text only. Throws when even that fails.
+ */
+export async function askCloud(settings: CloudSettings, system: string, user: string, image?: string): Promise<string> {
   const brain = activeBrain(settings);
   if (!brain) throw new Error('No cloud key is configured.');
-  const { url, init } = buildChatRequest(brain, settings.keys[brain]!.trim(), modelFor(settings, brain), system, user);
+  const key = settings.keys[brain]!.trim();
+  const model = modelFor(settings, brain);
+  if (image) {
+    try {
+      const { url, init } = buildChatRequest(brain, key, model, system, user, image);
+      return extractChatText(brain, await call(url, init, 45_000));
+    } catch { /* fall through to text-only */ }
+  }
+  const { url, init } = buildChatRequest(brain, key, model, system, user);
   return extractChatText(brain, await call(url, init, 30_000));
 }
 

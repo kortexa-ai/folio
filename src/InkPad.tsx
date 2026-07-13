@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { detectAnswerCircle, detectScratchOut, isQuestionMark, type Stroke } from './recognizer';
 
 type InkStroke = {
@@ -18,9 +18,16 @@ export type InkPadProps = {
   onActivity?: () => void;
 };
 
-const FADE_MS = 650;
+export type InkPadHandle = {
+  /** A small photo of the page's ink (JPEG data URL), for the tutor to look at. Null when blank. */
+  snapshot: () => string | null;
+};
 
-export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark, onActivity }: InkPadProps) {
+const FADE_MS = 650;
+const SNAPSHOT_MAX = 896;
+
+export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
+  { clearSignal, eink, onCircleAnswer, onQuestionMark, onActivity }: InkPadProps, handle) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokes = useRef<InkStroke[]>([]);
   const active = useRef<InkStroke | null>(null);
@@ -97,6 +104,42 @@ export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark, onAc
   useEffect(() => { strokes.current = []; active.current = null; lastEnd.current = null; draw(); }, [clearSignal]);
   useEffect(draw, [eink]);
 
+  useImperativeHandle(handle, () => ({
+    snapshot: () => {
+      const live = strokes.current.filter(s => s.fadeStart == null && s.points.length > 1);
+      if (!live.length) return null;
+      const points = live.flatMap(s => s.points);
+      const minX = Math.min(...points.map(p => p.x)) - 24, maxX = Math.max(...points.map(p => p.x)) + 24;
+      const minY = Math.min(...points.map(p => p.y)) - 24, maxY = Math.max(...points.map(p => p.y)) + 24;
+      const w = maxX - minX, h = maxY - minY;
+      if (w < 8 || h < 8) return null;
+      const scale = Math.min(1, SNAPSHOT_MAX / Math.max(w, h));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(w * scale);
+      canvas.height = Math.round(h * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.translate(-minX, -minY);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#111111';
+      for (const s of live) {
+        ctx.beginPath();
+        ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (let i = 1; i < s.points.length; i++) {
+          // keep strokes at least ~2.5px wide in the exported image
+          ctx.lineWidth = Math.max(1.8 + s.points[i].pressure * 2.6, 2.5 / scale);
+          ctx.lineTo(s.points[i].x, s.points[i].y);
+        }
+        ctx.stroke();
+      }
+      return canvas.toDataURL('image/jpeg', 0.82);
+    },
+  }), []);
+
   const localPoints = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const events = event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent];
@@ -164,4 +207,4 @@ export function InkPad({ clearSignal, eink, onCircleAnswer, onQuestionMark, onAc
       onPointerCancel={() => { active.current = null; predicted.current = []; penActive.current = false; draw(); }}
     />
   );
-}
+});

@@ -160,3 +160,22 @@ Tests: 60 across curriculum/scheduler, recognizer/gestures/legibility, storage/s
 voice validators, and cloud builders. Verified in-browser end-to-end (erase, silent group
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
+
+## v4.1: the tutor sees your work (2026-07-13, autonomous session)
+
+Milestone 2's wildcard from the implementation doc — send the rendered ink to the multimodal
+cloud tutor instead of (only) transcribing it.
+
+- `InkPad` exposes `snapshot()`: live strokes re-rendered onto a white offscreen canvas
+  (bounded, long side ≤896px, ≥2.5px stroke width, JPEG ~5–10KB).
+- Cloud escalations (second hint / repeated misses) attach that photo: Anthropic gets a base64
+  image block, OpenAI-style providers (GPT/Grok/OpenRouter) get an `image_url` part; the prompt
+  tells the tutor to ground its nudge in what the child actually wrote or drew. If the model
+  rejects the image (400/no vision), `askCloud` retries once text-only — hints never break.
+- Illustration prompts now blur the counts (`3 apples` → `some apples`) so a generated drawing
+  can't contradict the arithmetic.
+- Verified end-to-end under Playwright with an intercepted Anthropic endpoint: hint #1 stayed
+  deterministic (zero calls), hint #2 carried a 7KB JPEG (inspected — working marks and the
+  circled answer clearly legible) plus the grounding prompt, the mocked reply rendered on the
+  page, and a forced 400-with-image fell back to a text-only retry (two calls captured).
+  Tests: 63. Real-key quality pass on iPad still pending.
