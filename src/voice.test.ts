@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptQuip, acceptRewrite, requiredNumbers } from './voice';
+import { acceptContribution, acceptPassage, acceptQuip, acceptRewrite, fallbackOpening, fallbackTopics, acceptTopics, requiredNumbers } from './voice';
 
 const ORIGINAL = 'Maya has 6 toy cars. A friend brings 3 more. How many toy cars altogether?';
 
@@ -34,6 +34,48 @@ describe('quip validator', () => {
   it('rejects numbers, markdown, and rambling', () => {
     expect(acceptQuip('You got 9 exactly right!')).toBeNull();
     expect(acceptQuip('**Wonderful!**')).toBeNull();
-    expect(acceptQuip('What a wonderful, marvelous, extraordinary, magnificent piece of arithmetic!')).toBeNull();
+    expect(acceptQuip('What a wonderful, marvelous, extraordinary, magnificent, breathtaking piece of arithmetic!')).toBeNull();
+  });
+});
+
+describe('story-beat validator (create mode)', () => {
+  it('accepts a short beat and strips quotes', () => {
+    expect(acceptContribution('"The dragon sneezed, and out came a tiny umbrella."'))
+      .toBe('The dragon sneezed, and out came a tiny umbrella.');
+  });
+  it('rejects endings, links, markdown, and rambling', () => {
+    expect(acceptContribution('And they lived happily. The end.')).toBeNull();
+    expect(acceptContribution('See https://example.com for more')).toBeNull();
+    expect(acceptContribution('**bold move**')).toBeNull();
+    expect(acceptContribution('word '.repeat(60))).toBeNull();
+  });
+});
+
+describe('wonder validators (explore mode)', () => {
+  it('parses three clean topics from a model line', () => {
+    expect(acceptTopics('volcanoes, the deep sea, why the moon changes')).toEqual(['volcanoes', 'the deep sea', 'why the moon changes']);
+    expect(acceptTopics('1. volcanoes\n2. the deep sea\n3. old castles')).toEqual(['volcanoes', 'the deep sea', 'old castles']);
+  });
+  it('rejects too few, too long, or numbered-into-topics output', () => {
+    expect(acceptTopics('volcanoes')).toBeNull();
+    expect(acceptTopics(`${'very '.repeat(12)}long topic, b, c`)?.length ?? null).toBeNull();
+  });
+  it('accepts a passage and rejects links or essays', () => {
+    expect(acceptPassage('An octopus has three hearts, and two of them stop when it swims. What would it feel like to rest a heart?'))
+      .toContain('three hearts');
+    expect(acceptPassage('Read more at www.example.com')).toBeNull();
+    expect(acceptPassage('word '.repeat(120))).toBeNull();
+  });
+});
+
+describe('deterministic fallbacks', () => {
+  it('openings weave in the name or an interest', () => {
+    expect(fallbackOpening('dragons', 'Maya', () => 0.2)).toContain('Maya');
+    expect(fallbackOpening('dragons', undefined, () => 0.7)).toContain('dragon');
+  });
+  it('fallback topics start from interests and always number three', () => {
+    const topics = fallbackTopics('rockets, castles', () => 0);
+    expect(topics).toHaveLength(3);
+    expect(topics).toContain('rockets');
   });
 });

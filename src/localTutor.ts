@@ -1,5 +1,5 @@
 export { MODEL_ID, SYSTEM_PROMPT } from './tutorPrompt';
-import { MODEL_ID, SYSTEM_PROMPT } from './tutorPrompt';
+import { MODEL_ID, SYSTEM_PROMPT, withIdentity } from './tutorPrompt';
 import { logEvent } from './journal';
 
 let worker: Worker | undefined;
@@ -89,8 +89,8 @@ export function generate(system: string, user: string, options: { maxNewTokens?:
   return askWorker({ type: 'generate', system, user, ...options });
 }
 
-export function getLocalHint(problem: string, attempt: string) {
-  return generate(SYSTEM_PROMPT,
+export function getLocalHint(problem: string, attempt: string, name?: string) {
+  return generate(withIdentity(SYSTEM_PROMPT, name),
     `Problem: ${problem}. Learner's attempt: ${attempt || 'no answer yet'}. Give one hint.`,
     { maxNewTokens: 42, temperature: 0.3 });
 }

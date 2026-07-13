@@ -161,6 +161,41 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v5: a notebook with three kinds of pages (2026-07-13)
+
+Three features requested mid-pilot: an intro, a creative mode, and an explore mode.
+
+- **Intro sequence** (fresh notebook and after every reset): the notebook asks "Whose notebook
+  am I?" (name written on a ruled dashed line; "I'd rather stay mysterious" to skip), then
+  offers to wake the little brain (skipped if it's already on). The name is stored locally and
+  becomes part of the notebook's identity in every prompt (`withIdentity`): local hints, cloud
+  hints, quips, retellings (which may now make the child the hero), story beats, and wonders.
+  Settings gains a "This notebook belongs to…" field; reset clears the name and re-runs the intro.
+- **Story pages (create mode)**: the notebook opens a story (deterministic openers woven from
+  the name/interests), the child draws and writes their part in ink, and `?` asks the notebook
+  for ONE next beat — via cloud with a photo of the child's page when a key exists (the beat can
+  reference what they actually drew), else the little brain (`CREATE_SYSTEM`, validated: ≤220
+  chars, never "the end", no links/markdown), else a deterministic beat. **Turn-taking is
+  enforced**: the notebook never takes two turns in a row (≥3 strokes required), and when
+  listening time outweighs making time 2:1 it asks for more ink first (≥8 strokes). Time is
+  tracked as **making** (ink bursts) vs **listening** (beat shown → next ink), batched into
+  progress and shown in For grown-ups.
+- **Wonder pages (explore mode)**: three tappable handwritten topics (little brain via
+  `TOPICS_SYSTEM`, else a fallback pool seeded from interests), tap → one wondrous-true-thing
+  passage (cloud first, then little brain via `PASSAGE_SYSTEM`, else a gentle "wake my brain"
+  note), with a taped-in illustration when imagegen is configured, `?` for fresh topics.
+  Explore time tracked and shown to grown-ups.
+- Mode corner (top-left script: practice · story pages · wonder pages); per-mode legends and
+  dog-ear behavior (new story / new wonders / fresh page); practice-only gating for idle
+  whisper, prefetching, mastery chrome, and answer circles.
+- Tests: 82 (validators for beats/topics/passages, fallback weaving, storage round-trip of mode
+  time). Browser-verified end-to-end: intro (name → brain → personalized welcome) → story pages
+  (guard fires without ink; with a key the beat request carries `CREATE_SYSTEM` + the page
+  photo) → wonder pages (topics, cloud passage) → grown-ups shows making/listening →
+  reset re-runs the intro with the name cleared.
+- Note: the little-brain paths (beats/topics/passages) are validated + journaled but still need
+  a real-device pass; the balance heuristics are first guesses to tune with the pilot.
+
 ## v4.5: variety — no more "8 + 2 again" (2026-07-13)
 
 Field report #2 (pilot is on an **iPhone** — no iPad tested yet): "Making ten was too

@@ -10,13 +10,16 @@ export type Progress = {
   startedAt: string;
   lastActiveAt: number;
   sessions: Session[];
+  /** Creative-mode time split: making (ink down) vs listening (reading the notebook). */
+  creative: { createMs: number; consumeMs: number };
+  explore: { ms: number };
 };
 
 const SESSION_GAP = 30 * 60_000;
 const SESSIONS_KEEP = 40;
 
 export const freshProgress = (): Progress =>
-  ({ version: 3, mastery: {}, attempts: 0, streak: 0, startedAt: new Date().toISOString(), lastActiveAt: 0, sessions: [] });
+  ({ version: 3, mastery: {}, attempts: 0, streak: 0, startedAt: new Date().toISOString(), lastActiveAt: 0, sessions: [], creative: { createMs: 0, consumeMs: 0 }, explore: { ms: 0 } });
 
 /** Fold an event into the session log; a long quiet gap starts a new session. */
 export function touchSession(progress: Progress, event: 'solved' | 'miss' | 'hint', now = Date.now()): Progress {
@@ -93,6 +96,11 @@ export function coerceProgress(raw: unknown): Progress {
       sessions: Array.isArray(value.sessions)
         ? value.sessions.filter(s => ['start', 'end', 'solved', 'misses', 'hints'].every(k => typeof (s as unknown as Record<string, unknown>)[k] === 'number')).slice(-SESSIONS_KEEP)
         : [],
+      creative: {
+        createMs: typeof value.creative?.createMs === 'number' ? value.creative.createMs : 0,
+        consumeMs: typeof value.creative?.consumeMs === 'number' ? value.creative.consumeMs : 0,
+      },
+      explore: { ms: typeof value.explore?.ms === 'number' ? value.explore.ms : 0 },
       mastery,
     };
   }

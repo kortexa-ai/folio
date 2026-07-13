@@ -91,6 +91,40 @@ button { cursor: pointer; }
   pointer-events: none; z-index: 3; animation: inkin .8s ease-out both;
 }
 
+/* ---- the intro: the notebook asks whose it is ------------------------------- */
+
+.intro { pointer-events: auto; max-width: 78%; padding-top: 8vh; }
+.intro-row { display: flex; align-items: baseline; gap: 16px; margin-top: 26px; flex-wrap: wrap; }
+.name-line {
+  border: 0; border-bottom: 2px dashed var(--diary-soft); background: transparent; outline: none;
+  font-family: var(--hand); font-size: clamp(24px, 4vw, 34px); color: #31519a; /* the child's ink */
+  width: min(52vw, 340px); padding: 4px 6px;
+}
+.name-line:focus { border-bottom-style: solid; border-bottom-color: var(--diary); }
+.intro-skip { color: var(--diary-soft); font-family: var(--hand); margin-top: 14px; }
+
+/* ---- story & wonder pages ----------------------------------------------------- */
+
+.storylines { max-width: 74%; }
+.storybeat { margin: 0 0 14px; }
+.topics { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 4vh; pointer-events: none; }
+.topicchip {
+  pointer-events: auto; border: 1.5px solid var(--diary-soft); border-radius: 999px 10px 999px 10px;
+  background: rgba(255, 253, 245, .55); padding: 12px 22px;
+  font-family: var(--hand); font-size: clamp(18px, 2.6vw, 24px); color: var(--diary);
+}
+.topicchip:hover { background: var(--diary); color: var(--paper); }
+
+/* ---- mode corner: practice · story pages · wonder pages ---------------------- */
+
+.mode-corner { position: absolute; top: 12px; left: 16px; z-index: 6; }
+.mode-script { border: 0; background: transparent; padding: 8px 10px; font-family: var(--hand); font-size: 14px; color: var(--diary-soft); }
+.mode-script:hover { color: var(--diary); }
+.mode-menu { position: absolute; top: 34px; left: 6px; display: flex; flex-direction: column; background: #fbf6e9; border: 1px solid #d8cdb2; border-radius: 4px; box-shadow: 4px 6px 0 rgba(92, 74, 51, .12); overflow: hidden; }
+.mode-menu button { border: 0; background: transparent; padding: 11px 18px; font-family: var(--hand); font-size: 15px; color: var(--diary); text-align: left; white-space: nowrap; }
+.mode-menu button:hover { background: #efe7d2; }
+.mode-menu button.current { text-decoration: underline; text-underline-offset: 3px; }
+
 /* ---- the only chrome: a bookmark, a chapter heading, a folded corner ------- */
 
 .chapter-script {
@@ -226,6 +260,11 @@ html[data-eink='true'] .eink-flash { animation: einkflash .26s steps(2, end) for
   .note { max-width: 92%; font-size: 16px; min-height: 60px; }
   .polaroid { top: 46px; right: 12px; width: 25vw; border-width: 5px; border-bottom-width: 16px; }
   .chapter-script { font-size: 13px; top: 8px; }
+  .mode-corner { top: 6px; left: 6px; }
+  .mode-script { font-size: 12px; }
+  .intro { max-width: 94%; padding-top: 4vh; }
+  .storylines { max-width: 92%; }
+  .topicchip { font-size: 17px; padding: 10px 18px; }
   .ribbon { right: 18px; width: 24px; height: 52px; }
   .dogear { width: 46px; height: 46px; }
   .legend { font-size: 11px; }

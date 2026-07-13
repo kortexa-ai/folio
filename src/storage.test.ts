@@ -14,10 +14,19 @@ describe('progress imports and migrations', () => {
     expect(progress.mastery['mt_OvyoRo47K-'].history).toEqual([]);
     expect(progress.sessions).toEqual([]);
   });
-  it('accepts a v3 export round-trip, keeping sessions and history', () => {
+  it('accepts a v3 export round-trip, keeping sessions, history, and mode time', () => {
     const original = touchSession(freshProgress(), 'solved', 1000);
+    original.creative = { createMs: 120_000, consumeMs: 30_000 };
+    original.explore = { ms: 45_000 };
     const roundTrip = parseProgressExport(JSON.stringify({ version: 3, progress: original }));
     expect(roundTrip.sessions).toEqual(original.sessions);
+    expect(roundTrip.creative).toEqual({ createMs: 120_000, consumeMs: 30_000 });
+    expect(roundTrip.explore).toEqual({ ms: 45_000 });
+  });
+  it('fills zero mode time for records that predate it', () => {
+    const progress = parseProgressExport(JSON.stringify({ version: 3, progress: { ...freshProgress(), creative: undefined, explore: undefined } }));
+    expect(progress.creative).toEqual({ createMs: 0, consumeMs: 0 });
+    expect(progress.explore).toEqual({ ms: 0 });
   });
   it('migrates a v1 per-operation export onto entry topics', () => {
     const progress = parseProgressExport(JSON.stringify({ version: 1, progress: { solved: { add: 5, subtract: 2, multiply: 0 }, attempts: 8, streak: 2 } }));

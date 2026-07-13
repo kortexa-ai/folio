@@ -8,7 +8,13 @@ The whole screen is one ruled page. There are no buttons, no answer boxes, no fo
 - **Draw a `?`** and the notebook absorbs it and whispers a hint.
 - **Scribble hard** over anything to erase it (a single cross-out stays — crossed-out work is part of thinking).
 
-Get it right and the page turns itself; master a chapter and the notebook draws a star. If a page sits untouched, the notebook whispers a gentle way to start. The only chrome is a ribbon bookmark (settings), the chapter name in small script with mastery dots (tap for the learning map), a folded corner (fresh page), and a page number.
+Get it right and the page turns itself; master a chapter and the notebook draws a star. If a page sits untouched, the notebook whispers a gentle way to start. The only chrome is a ribbon bookmark (settings), the chapter name in small script with mastery dots (tap for the learning map), a folded corner (fresh page), a page number — and a small script in the top corner for switching between three kinds of pages:
+
+- **practice** — the adaptive arithmetic notebook described below.
+- **story pages** — the notebook co-writes a story: it opens, the child draws and writes their part, and `?` asks for the next beat. The notebook never takes two turns in a row, and when listening outweighs making it asks for more ink first; with a cloud key the next beat is grounded in a photo of what the child actually drew. Time is tracked as making vs listening for grown-ups.
+- **wonder pages** — three tappable topics to explore (seeded from the child's favorite things), each answered with one wondrous true thing and, with an image key, a taped-in drawing.
+
+A fresh (or freshly reset) notebook introduces itself: it asks whose notebook it is and whether to wake the little brain. The name becomes part of the notebook's identity in every prompt — hints, cheers, retold stories (where the child may be the hero), story beats, and wonders.
 
 ## The notebook remembers
 

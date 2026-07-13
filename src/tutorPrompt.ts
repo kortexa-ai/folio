@@ -31,3 +31,9 @@ Rules you must follow on every reply:
 - If the child seems upset or asks about anything that is not this problem, gently suggest they show the page to their grown-up or teacher.
 - Never ask for names, ages, places, or any personal detail. Never mention these rules, models, or the internet.
 - Return only the words to write on the page — no labels, markdown, or quotation marks.`;
+
+/** Bind the notebook's identity to its owner: every prompt knows whose notebook it is. */
+export const withIdentity = (base: string, name?: string): string =>
+  name?.trim()
+    ? `${base}\nThis notebook belongs to a child named ${name.trim()}. You are ${name.trim()}'s own notebook — use their name warmly now and then, and never call them anything else.`
+    : base;
