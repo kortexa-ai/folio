@@ -181,8 +181,9 @@ html[data-eink='true'] .flourish path { stroke-dashoffset: 0; }
 .inkbutton:hover:not(:disabled) { background: var(--diary); color: var(--paper); }
 .inkbutton:disabled { opacity: .55; cursor: default; }
 
-.text-button { display: block; padding: 10px 0; border: 0; background: transparent; text-decoration: underline; text-underline-offset: 3px; font-size: 14px; }
+.text-button { display: block; padding: 10px 0; border: 0; background: transparent; text-decoration: underline; text-underline-offset: 3px; font-size: 14px; text-align: left; }
 .danger { color: #a64f35; }
+.text-button.armed { font-family: var(--hand); font-weight: 600; text-decoration: none; background: #a64f3514; border-radius: 4px; padding: 10px 10px; }
 .import-button { display: block; padding: 10px 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-size: 14px; }
 .import-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 

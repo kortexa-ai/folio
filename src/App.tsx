@@ -6,7 +6,7 @@ import { getLocalHint, loadTutor, MODEL_ID, sleepTutor } from './localTutor';
 import { prefetchQuip, prefetchStory, takeQuip, takeStory } from './voice';
 import { activeBrain, askCloud, CHAT_PROVIDERS, FAL_DEFAULT_MODEL, generateIllustration, imageProvider, loadCloudSettings, saveCloudSettings, type CloudSettings, type ProviderId } from './cloud';
 import { CLOUD_SYSTEM_PROMPT } from './tutorPrompt';
-import { daysWritten, downloadProgress, loadProgress, parseProgressExport, saveProgress, touchSession, type Progress } from './storage';
+import { daysWritten, downloadProgress, freshProgress, loadProgress, parseProgressExport, saveProgress, touchSession, type Progress } from './storage';
 
 type Note = { tone: 'welcome' | 'muse' | 'good' | 'gentle' | 'thinking'; text: string; alts?: number[] };
 
@@ -60,10 +60,16 @@ export default function App() {
   const [brainOn, setBrainOn] = useState(() => localStorage.getItem('folio-brain') === 'on');
   const [modelStatus, setModelStatus] = useState<'off' | 'loading' | 'ready' | 'error'>('off');
   const [modelMessage, setModelMessage] = useState('');
+  const [resetArmed, setResetArmed] = useState(false);
+  const [importError, setImportError] = useState('');
   const locked = useRef(false);
   const pageShownAt = useRef(Date.now());
   const idleTimer = useRef(0);
+  const resetTimer = useRef(0);
   const pad = useRef<InkPadHandle>(null);
+
+  // Opening/closing a panel always disarms the reset and clears stale errors.
+  useEffect(() => { setResetArmed(false); setImportError(''); clearTimeout(resetTimer.current); }, [panel]);
 
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
@@ -234,6 +240,26 @@ export default function App() {
     setNote({ tone: 'muse', text: deterministic });
   };
 
+  // Two taps, no window.confirm (unreliable in installed PWAs on iOS): the
+  // first arms the button for a few seconds, the second blanks the notebook
+  // in place — progress and stats go, keys and settings stay.
+  const resetNotebook = () => {
+    if (!resetArmed) {
+      setResetArmed(true);
+      clearTimeout(resetTimer.current);
+      resetTimer.current = window.setTimeout(() => setResetArmed(false), 6000);
+      return;
+    }
+    clearTimeout(resetTimer.current);
+    setResetArmed(false);
+    localStorage.removeItem('folio-progress');
+    const fresh = freshProgress();
+    setProgress(fresh);
+    setPanel('none');
+    locked.current = false;
+    turnPage(fresh, WELCOME);
+  };
+
   const toggleBrain = (on: boolean) => {
     setBrainOn(on);
     if (on) {
@@ -387,12 +413,14 @@ export default function App() {
         <label className="import-button">Import progress<input type="file" accept="application/json,.json" onChange={async event => {
           const file = event.target.files?.[0]; if (!file) return;
           try { const imported = parseProgressExport(await file.text()); setProgress(imported); turnPage(imported, 'Welcome back.'); setPanel('none'); }
-          catch (error) { alert(error instanceof Error ? error.message : 'Could not import that file.'); }
+          catch (error) { setImportError(error instanceof Error ? error.message : 'Could not import that file.'); }
           event.target.value = '';
         }} /></label>
-        <button className="text-button danger" onClick={() => {
-          if (confirm('Blank every page of this notebook? (Your keys and settings stay.)')) { localStorage.removeItem('folio-progress'); location.reload(); }
-        }}>Start the notebook over</button>
+        {importError && <small className="error">{importError}</small>}
+        <button className={`text-button danger ${resetArmed ? 'armed' : ''}`} onClick={resetNotebook}>
+          {resetArmed ? 'Tap once more to blank every page — there is no undo' : 'Reset progress & stats (start the notebook over)'}
+        </button>
+        <small>Erases all pages, mastery, and stats. Keys and settings stay.</small>
       </section>
     </aside>}
   </main>;
