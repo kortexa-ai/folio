@@ -1,6 +1,6 @@
 # Folio build log and handoff
 
-Last updated: 2026-07-13 (America/Los_Angeles) — v4
+Last updated: 2026-07-13 (America/Los_Angeles) — v5.3, local brain stable on iPhone
 
 ## Goal
 
@@ -172,6 +172,11 @@ before; the pipeline() wrapper is gone. This is the last structural difference f
 configuration known to run this model in-browser — if the tab still dies on a single
 on-demand generation, the finding is that a 230M in a Safari tab on this phone is out of
 budget alongside the app, and phones go cloud-flavored only.
+
+**Resolved (field-confirmed same day):** the rebuild fixed it — generations survive on the
+pilot iPhone. The pipeline() wrapper was the memory difference. Next session: tune prompts and
+validator leniency so more of the 230M's output is accepted (journal shows the accept/reject
+rate), then consider re-enabling gentle ambience on phones now that generation itself is stable.
 
 ## v5.2: pace the brain — no ambient generation on phones (2026-07-13)
 
