@@ -160,6 +160,11 @@ html[data-eink='true'] .flourish path { stroke-dashoffset: 0; }
 .toggle .interests { border: 0; border-bottom: 1.5px dashed #c6bca1; background: transparent; padding: 4px 2px; font-size: 13px; width: 45%; outline: none; }
 .toggle .interests:focus { border-bottom-color: var(--diary); border-bottom-style: solid; }
 
+.journal { list-style: none; margin: 6px 0; padding: 8px 10px; background: #f3ecd9; border-radius: 4px; font: 10.5px ui-monospace, 'SFMono-Regular', Consolas, monospace; max-height: 200px; overflow: auto; }
+.journal li { padding: 2.5px 0; border-bottom: 1px dotted #e0d6bd; word-break: break-word; }
+.journal li span { color: #97917f; margin-right: 6px; }
+.journal-raw { width: 100%; height: 120px; margin: 6px 0; font: 10px ui-monospace, monospace; background: #f3ecd9; border: 1px dashed #c6bca1; border-radius: 4px; padding: 6px; }
+
 .grownups { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
 .grownups th { text-align: left; font-family: var(--hand); font-weight: 600; color: var(--diary); padding: 4px 6px 4px 0; border-bottom: 1px solid #d8cdb2; }
 .grownups td { padding: 5px 6px 5px 0; border-bottom: 1px dotted #e4dbc4; color: #6c6350; }

@@ -7,6 +7,7 @@ import { prefetchQuip, prefetchStory, takeQuip, takeStory } from './voice';
 import { activeBrain, askCloud, CHAT_PROVIDERS, FAL_DEFAULT_MODEL, generateIllustration, imageProvider, loadCloudSettings, saveCloudSettings, type CloudSettings, type ProviderId } from './cloud';
 import { CLOUD_SYSTEM_PROMPT } from './tutorPrompt';
 import { daysWritten, downloadProgress, freshProgress, loadProgress, parseProgressExport, saveProgress, touchSession, type Progress } from './storage';
+import { clearJournal, journalReport, logEvent, readJournal } from './journal';
 
 type Note = { tone: 'welcome' | 'muse' | 'good' | 'gentle' | 'thinking'; text: string; alts?: number[] };
 
@@ -62,6 +63,8 @@ export default function App() {
   const [modelMessage, setModelMessage] = useState('');
   const [resetArmed, setResetArmed] = useState(false);
   const [importError, setImportError] = useState('');
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [journalCopied, setJournalCopied] = useState<'idle' | 'copied' | 'manual'>('idle');
   const locked = useRef(false);
   const pageShownAt = useRef(Date.now());
   const idleTimer = useRef(0);
@@ -69,7 +72,7 @@ export default function App() {
   const pad = useRef<InkPadHandle>(null);
 
   // Opening/closing a panel always disarms the reset and clears stale errors.
-  useEffect(() => { setResetArmed(false); setImportError(''); clearTimeout(resetTimer.current); }, [panel]);
+  useEffect(() => { setResetArmed(false); setImportError(''); setJournalOpen(false); setJournalCopied('idle'); clearTimeout(resetTimer.current); }, [panel]);
 
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
@@ -96,6 +99,7 @@ export default function App() {
   useEffect(() => {
     if (!brainOn || modelStatus !== 'off') return;
     if (tookDownLastSession()) {
+      logEvent('brain: crash-guard tripped — previous session died with the brain awake; auto-wake skipped');
       setBrainOn(false);
       localStorage.removeItem('folio-brain');
       setModelStatus('error');
@@ -426,6 +430,25 @@ export default function App() {
             })}
           </tbody>
         </table>}
+      </section>
+
+      <section>
+        <h3>If something goes wrong</h3>
+        <p>The notebook keeps a small technical journal — boots, the little brain waking, errors. No writing or answers are ever recorded in it. If a page crashed, the story of what happened is in here.</p>
+        <button className="text-button" onClick={() => setJournalOpen(o => !o)}>{journalOpen ? 'Hide the journal' : `Show the journal (${readJournal().length} entries)`}</button>
+        {journalOpen && <>
+          <ol className="journal">
+            {readJournal().slice(-14).reverse().map((e, i) =>
+              <li key={i}><span>{new Date(e.t).toLocaleTimeString()}</span> {e.m}</li>)}
+          </ol>
+          <button className="inkbutton" onClick={async () => {
+            try { await navigator.clipboard.writeText(journalReport()); setJournalCopied('copied'); }
+            catch { setJournalCopied('manual'); }
+          }}>Copy journal</button>
+          {journalCopied === 'copied' && <small>Copied — paste it to whoever is helping you.</small>}
+          {journalCopied === 'manual' && <textarea className="journal-raw" readOnly value={journalReport()} onFocus={e => e.currentTarget.select()} />}
+          <button className="text-button" onClick={() => { clearJournal(); setJournalOpen(false); }}>Clear the journal</button>
+        </>}
       </section>
 
       <section>

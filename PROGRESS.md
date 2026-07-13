@@ -161,6 +161,18 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v4.3: the black-box journal (2026-07-13)
+
+The pilot user has no computer attached to the iPad, so the notebook now carries its own
+diagnostics: `src/journal.ts` is a 60-entry ring buffer in localStorage (synchronous writes
+survive tab crashes) recording boots (with build stamp + screen + installed-PWA flag), global
+errors/unhandled rejections, clean exits, brain lifecycle (waking / loading at 25% milestones /
+awake / clean failure / sleep), and crash-guard trips. No learner content is ever recorded.
+Settings → "If something goes wrong" shows the journal with **Copy journal** (clipboard, with a
+select-all textarea fallback) and Clear. Verified in-browser: a seeded crashed-session journal
+reads boot → waking → loading 25% → (crash) → boot → crash-guard tripped, and the copied
+report includes the device UA. Build stamp injected via vite `define`. Tests: 67.
+
 ## v4.2: iOS crash fix — lighter brain + crash-loop guard (2026-07-13)
 
 Field report: the page crashed in Safari on iOS. Diagnosis: the 350M q4 checkpoint can blow

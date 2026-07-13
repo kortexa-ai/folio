@@ -1,5 +1,6 @@
 export { MODEL_ID, SYSTEM_PROMPT } from './tutorPrompt';
-import { SYSTEM_PROMPT } from './tutorPrompt';
+import { MODEL_ID, SYSTEM_PROMPT } from './tutorPrompt';
+import { logEvent } from './journal';
 
 let worker: Worker | undefined;
 let requestId = 0;
@@ -48,12 +49,21 @@ export function tookDownLastSession(): boolean {
 export async function loadTutor(onProgress?: (message: string) => void) {
   if (!('gpu' in navigator)) throw new Error('WebGPU is not available in this browser.');
   onProgress?.('Opening the local model…');
+  logEvent(`brain: waking ${MODEL_ID}`);
   setSentinel(true); // armed through the risky part — a crash here leaves it behind
+  let lastMilestone = -1;
   try {
-    await askWorker({ type: 'load' }, onProgress);
+    await askWorker({ type: 'load' }, message => {
+      const percent = Number(message.match(/(\d+)%/)?.[1] ?? -1);
+      const milestone = Math.floor(percent / 25);
+      if (percent >= 0 && milestone > lastMilestone) { lastMilestone = milestone; logEvent(`brain: loading ${percent}%`); }
+      onProgress?.(message);
+    });
     awake = true;
+    logEvent('brain: awake');
   } catch (error) {
     setSentinel(false); // a clean failure is not a crash
+    logEvent(`brain: load failed cleanly — ${error instanceof Error ? error.message : String(error)}`);
     throw error;
   }
 }
@@ -61,6 +71,7 @@ export async function loadTutor(onProgress?: (message: string) => void) {
 export async function sleepTutor() {
   awake = false;
   setSentinel(false);
+  logEvent('brain: put to sleep');
   await askWorker({ type: 'dispose' });
 }
 
