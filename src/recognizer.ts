@@ -103,6 +103,17 @@ const T: Record<string, Stroke[][]> = {
 const templates = Object.entries(T).flatMap(([digit, variants]) =>
   variants.map(strokes => ({ digit, cloud: normalize(resample(strokes)) })));
 
+// Question-mark variants: a hook curling from the left over the top and down,
+// with and without the dot underneath.
+const QUESTION: Stroke[][] = [
+  [[...arc(50, 26, 20, 20, 180, 435), ...line(55, 45, 50, 66)]],
+  [[...arc(50, 26, 20, 20, 180, 435), ...line(55, 45, 50, 58)], line(50, 82, 51, 90, 4)],
+  [[...arc(48, 24, 22, 19, 190, 430), ...line(54, 42, 48, 72)]],
+  [[...arc(50, 28, 18, 22, 175, 440), ...line(56, 50, 52, 70)], line(52, 88, 53, 94, 4)],
+];
+
+const questionTemplates = QUESTION.map(strokes => ({ cloud: normalize(resample(strokes)) }));
+
 // --- public API --------------------------------------------------------------
 
 export type DigitGuess = { digit: string; score: number };
@@ -148,6 +159,49 @@ export function recognizeNumber(strokes: Stroke[]): NumberGuess | null {
   const digits = groups.map(recognizeDigit);
   if (digits.some(d => d.length === 0)) return null;
   return { value: Number(digits.map(d => d[0].digit).join('')), digits };
+}
+
+// --- gestures ----------------------------------------------------------------
+// The notebook has no buttons: circling ink hands an answer in, and a drawn
+// question mark asks for a hint.
+
+const strokeCentroid = (s: Stroke): Point => ({
+  x: s.reduce((a, p) => a + p.x, 0) / s.length,
+  y: s.reduce((a, p) => a + p.y, 0) / s.length,
+});
+
+function pointInPolygon(p: Point, poly: Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Does `candidate` look like a ring drawn around other ink? Returns the
+ * enclosed strokes (the handed-in answer) or null. Requiring enclosure keeps
+ * a handwritten 0 from reading as a gesture.
+ */
+export function detectAnswerCircle(candidate: Stroke, others: Stroke[]): Stroke[] | null {
+  if (candidate.length < 8) return null;
+  const b = bounds(candidate);
+  const w = b.maxX - b.minX, h = b.maxY - b.minY;
+  if (Math.min(w, h) < 26) return null;
+  const gap = Math.hypot(candidate[0].x - candidate[candidate.length - 1].x, candidate[0].y - candidate[candidate.length - 1].y);
+  if (gap > 0.45 * Math.max(w, h)) return null;
+  const enclosed = others.filter(s => s.length > 1 && pointInPolygon(strokeCentroid(s), candidate));
+  return enclosed.length ? enclosed : null;
+}
+
+/** Does this group of strokes read as a drawn question mark (hint, please)? */
+export function isQuestionMark(strokes: Stroke[]): boolean {
+  if (!strokes.length || strokes.flat().length < 6) return false;
+  const cloud = normalize(resample(strokes));
+  const question = Math.min(...questionTemplates.map(t => greedyMatch(cloud, t.cloud)));
+  const digit = Math.min(...templates.map(t => greedyMatch(cloud, t.cloud)));
+  return question < digit * 0.9 && question < 3.2;
 }
 
 /** Alternative readings of the number, for "did you mean" correction chips. */

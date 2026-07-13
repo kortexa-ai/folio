@@ -1,6 +1,6 @@
 # Folio build log and handoff
 
-Last updated: 2026-07-11 (America/Los_Angeles)
+Last updated: 2026-07-13 (America/Los_Angeles)
 
 ## Goal
 
@@ -75,3 +75,42 @@ Build the first client-only implementation of the learning-tablet brief, publish
 - **E-ink discipline mode upgraded** from a grayscale filter to limited palette + motion removal + a simulated refresh flash on page turns.
 - **Storage v2** keyed by taxonomy topic id, with automatic migration of v1 per-operation exports.
 - Tests: 17 across curriculum, recognizer, and storage. `npm test` and `npm run build` green.
+
+## v3 "magical diary" rework (2026-07-13)
+
+North-star redesign: the app is no longer a website with a scratchpad — it is one full-screen
+notebook page that writes back (think the enchanted diary, not a quiz form).
+
+- **All buttons removed from the learning flow.** The entire viewport is the ink canvas; the
+  learner writes anywhere (Pencil on iPad, finger on iPhone — palm rejection kept). Two gestures
+  replace the old Check/Hint/Clear buttons: **circle your answer** to hand it in (ring detection =
+  closed stroke enclosing other ink, `detectAnswerCircle`), and **draw a `?`** for a hint (the $P
+  recognizer gained question-mark templates; the gesture strokes fade out as the notebook
+  "absorbs" them). Probed against partial digit strokes — no false positives.
+- **The notebook speaks in its own hand.** Problems and replies render in a bundled OFL
+  handwriting face (Patrick Hand, 22KB woff2 subset — no remote font) with a letter-by-letter
+  ink-soak reveal. Feedback is written prose ("9 — beautifully done." / "8? Not this one — but
+  you're close."), with tappable hand-drawn correction chips when recognition is unsure.
+- **Chrome reduced to diary furniture:** ribbon bookmark → settings, chapter name in script →
+  learning map, folded page corner → fresh page, page number, and a one-line gesture legend.
+  First run, the notebook introduces itself and teaches the two gestures.
+- **BYOK "wiser friends" (`src/cloud.ts`).** Optional keys for Anthropic / OpenAI / xAI /
+  OpenRouter, model overrides, and a preferred-brain picker; all persisted in localStorage only.
+  Escalation seam: deterministic whisper → local WebGPU brain → cloud (only from the second hint
+  or after repeated misses). Every cloud call is wrapped in `CLOUD_SYSTEM_PROMPT` (Socratic,
+  never answers, child-safe) regardless of whose key — per the concept doc's BYOK guardrail.
+  Browser-direct calls (Anthropic CORS header, OpenAI-style endpoints); pure request
+  builders/parsers unit-tested.
+- **Little pictures.** Story pages get a generated illustration taped in like a polaroid:
+  `gpt-image-1` with an OpenAI key, else fal.ai (`fal-ai/flux/schnell`), async and silent on
+  failure, only when enabled.
+- **iPhone works** as a smaller notebook (responsive margins/typography, safe-area insets,
+  touch-drawn gestures verified via CDP touch events).
+- Tests: 38 across curriculum, recognizer (incl. gestures), storage, and cloud builders.
+  Verified end-to-end under Playwright/Chromium: welcome → doodle (no false triggers) → `?` hint →
+  wrong answer circled (gentle nudge + chips) → right answer circled (praise + page turn) →
+  contents/settings panels → key persistence across reload → dog-ear skip → e-ink mode → iPhone
+  viewport with finger input.
+- Known follow-ups: local-brain auto-suggest on capable devices; sending the actual ink image to
+  multimodal cloud tutors (the concept doc's HWR wildcard); illustration count-accuracy for story
+  scenes; real-device Pencil latency pass.

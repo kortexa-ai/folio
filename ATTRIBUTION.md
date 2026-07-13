@@ -17,3 +17,13 @@ is extracted from:
 Folio's problem generators, hints, learner-facing chapter names, and app code are original to Folio
 and are a "produced work" in ODbL terms; improvements to the taxonomy data itself should be
 contributed back upstream.
+
+## Patrick Hand (typeface)
+
+The notebook's handwriting face, bundled locally at `src/assets/PatrickHand.woff2`
+(subset to Latin plus the arithmetic symbols Folio uses):
+
+> **Patrick Hand** · © 2010–2012 Patrick Wagesreiter (mail@patrickwagesreiter.at)
+
+Licensed under the **SIL Open Font License, Version 1.1** — https://openfontlicense.org.
+The font is served from the app's own origin; no remote font service is contacted.

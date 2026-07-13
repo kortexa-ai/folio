@@ -1,24 +1,52 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { InkPad } from './InkPad';
-import { chooseTopic, formatForTutor, isMastered, isUnlocked, makeProblem, recordAttempt, TOPICS, topicById, type Problem, type Topic } from './curriculum';
-import { alternatives, recognizeNumber, type NumberGuess, type Stroke } from './recognizer';
+import { chooseTopic, formatForTutor, isMastered, isUnlocked, makeProblem, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
+import { alternatives, recognizeNumber, type Stroke } from './recognizer';
 import { getLocalHint, loadTutor, MODEL_ID } from './localTutor';
+import { activeBrain, askCloud, CHAT_PROVIDERS, FAL_DEFAULT_MODEL, generateIllustration, imageProvider, loadCloudSettings, saveCloudSettings, type CloudSettings, type ProviderId } from './cloud';
+import { CLOUD_SYSTEM_PROMPT } from './tutorPrompt';
 import { downloadProgress, loadProgress, parseProgressExport, saveProgress, type Progress } from './storage';
 
-type Feedback = { kind: 'quiet' | 'good' | 'try'; text: string };
+type Note = { tone: 'welcome' | 'muse' | 'good' | 'gentle' | 'thinking'; text: string; alts?: number[] };
+
+const WELCOME = "Hello — I'm Folio, your notebook. Write anywhere on me: work things out, scribble, cross out. When you're sure of an answer, draw a circle around it. Stuck? Draw a little ? and I'll whisper a hint.";
+const PRAISE = ['Yes — exactly right.', "That's the one. Lovely.", 'Beautifully done.', 'Quite right, quite right.', 'You found it.'];
+const NUDGE = ['Hmm, not quite yet. Look at it once more.', "Not this one — but you're close. Try again.", 'Almost. Check your counting, slowly.'];
+
+/** Text that appears letter by letter, like ink soaking into the page. */
+function Handwrite({ text }: { text: string }) {
+  let i = 0;
+  return <span className="handwrite" aria-label={text}>
+    {text.split(' ').map((word, w) => (
+      <span className="hw-word" key={w} aria-hidden>
+        {[...word].map((ch, c) => <span className="hw-ch" key={c} style={{ animationDelay: `${Math.min(i++ * 24, 2400)}ms` }}>{ch}</span>)}
+      </span>
+    ))}
+  </span>;
+}
+
+const illustrationPrompt = (problem: Problem) => {
+  const scene = problem.statement.replace(/[^.!]*\?\s*$/, '').trim();
+  return `A child's small crayon drawing in the corner of a paper notebook: ${scene} Sweet, simple shapes, warm colors, plain cream paper background. No words, letters, or numbers.`;
+};
 
 export default function App() {
   const [progress, setProgress] = useState<Progress>(loadProgress);
   const [topic, setTopic] = useState<Topic>(() => chooseTopic(loadProgress().mastery));
   const [problem, setProblem] = useState<Problem>(() => makeProblem(topic));
-  const [guess, setGuess] = useState<NumberGuess | null>(null);
+  const [note, setNote] = useState<Note>(() => loadProgress().attempts === 0
+    ? { tone: 'welcome', text: WELCOME }
+    : { tone: 'muse', text: 'Welcome back — I kept your place.' });
   const [tries, setTries] = useState(0);
   const [hints, setHints] = useState(0);
-  const [feedback, setFeedback] = useState<Feedback>({ kind: 'quiet', text: 'Work it out on the page, then write your answer in the box.' });
+  const [lastRead, setLastRead] = useState<number | null>(null);
   const [clearSignal, setClearSignal] = useState(0);
-  const [panel, setPanel] = useState<'none' | 'settings' | 'map'>('none');
+  const [phase, setPhase] = useState<'idle' | 'out' | 'in'>('idle');
+  const [panel, setPanel] = useState<'none' | 'settings' | 'contents'>('none');
   const [eink, setEink] = useState(() => localStorage.getItem('folio-eink') === 'true');
   const [flash, setFlash] = useState(false);
+  const [cloud, setCloud] = useState<CloudSettings>(loadCloudSettings);
+  const [art, setArt] = useState<string | null>(null);
   const [modelStatus, setModelStatus] = useState<'off' | 'loading' | 'ready' | 'error'>('off');
   const [modelMessage, setModelMessage] = useState('');
   const locked = useRef(false);
@@ -29,83 +57,152 @@ export default function App() {
     localStorage.setItem('folio-eink', String(eink));
   }, [eink]);
 
-  const totalSolved = useMemo(() => Object.values(progress.mastery).reduce((a, m) => a + m.correct, 0), [progress]);
+  // A little taped-in drawing for story pages, when a picture key is configured.
+  useEffect(() => {
+    setArt(null);
+    if (problem.kind !== 'story' || !cloud.illustrations || !imageProvider(cloud)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const url = await generateIllustration(cloud, illustrationPrompt(problem));
+        if (!cancelled && url) setArt(url);
+      } catch { /* the page simply stays unillustrated */ }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem]);
 
-  const turnPage = (updated: Progress, note?: string) => {
-    if (eink) { setFlash(true); window.setTimeout(() => setFlash(false), 260); }
+  const updateCloud = (mutate: (next: CloudSettings) => void) => setCloud(current => {
+    const next: CloudSettings = { ...current, keys: { ...current.keys }, models: { ...current.models } };
+    mutate(next);
+    saveCloudSettings(next);
+    return next;
+  });
+
+  const totalSolved = Object.values(progress.mastery).reduce((a, m) => a + m.correct, 0);
+
+  const swapPage = (updated: Progress, message?: string) => {
     const nextTopic = chooseTopic(updated.mastery);
     setTopic(nextTopic);
     setProblem(makeProblem(nextTopic));
-    setGuess(null); setTries(0); setHints(0); setClearSignal(n => n + 1);
+    setTries(0); setHints(0); setLastRead(null); setClearSignal(n => n + 1);
     locked.current = false;
-    setFeedback({ kind: 'quiet', text: note ?? (nextTopic.id !== topic.id ? `New chapter: ${nextTopic.short}.` : 'Here comes the next one.') });
+    setNote({ tone: 'muse', text: message ?? (nextTopic.id !== topic.id ? `A new chapter: ${nextTopic.short}.` : 'The page turns…') });
   };
 
-  const onAnswerStrokes = (strokes: Stroke[]) => {
-    if (locked.current) return;
-    if (!strokes.length) return setGuess(null);
-    const g = recognizeNumber(strokes);
-    setGuess(g);
-    if (!g) setFeedback({ kind: 'quiet', text: "I couldn't read that — try writing the digits a little bigger." });
+  const turnPage = (updated: Progress, message?: string) => {
+    if (eink) {
+      setFlash(true); window.setTimeout(() => setFlash(false), 260);
+      return swapPage(updated, message);
+    }
+    setPhase('out');
+    window.setTimeout(() => {
+      swapPage(updated, message);
+      setPhase('in');
+      requestAnimationFrame(() => requestAnimationFrame(() => setPhase('idle')));
+    }, 430);
   };
 
-  const check = (value?: number) => {
-    if (locked.current) return;
-    const answer = value ?? guess?.value;
-    if (answer == null) return setFeedback({ kind: 'try', text: 'Write your answer in the dashed box first — your best guess is welcome.' });
+  const check = (value: number, alts: number[] = []) => {
+    if (locked.current || phase !== 'idle') return;
+    setLastRead(value);
     const nextTries = tries + 1;
     setTries(nextTries);
-    if (answer === problem.answer) {
+    if (value === problem.answer) {
       locked.current = true;
       const firstTry = nextTries === 1 && hints === 0;
       const mastery = recordAttempt(progress.mastery, topic.id, true, firstTry);
       const updated: Progress = { ...progress, mastery, attempts: progress.attempts + 1, streak: progress.streak + 1 };
       setProgress(updated);
       const mastered = !isMastered(progress.mastery[topic.id]) && isMastered(mastery[topic.id]);
-      setFeedback({ kind: 'good', text: mastered ? `That's "${topic.short}" mastered. New pages unlock.` : firstTry ? 'Exactly right.' : 'You found it. Nice recovery.' });
-      window.setTimeout(() => turnPage(updated), eink ? 900 : 1200);
+      setNote({ tone: 'good', text: mastered ? `${value} — and that's "${topic.short}" all yours now. New pages unlock…` : `${value} — ${PRAISE[updated.attempts % PRAISE.length]}` });
+      window.setTimeout(() => turnPage(updated), eink ? 900 : 1300);
     } else {
       const mastery = recordAttempt(progress.mastery, topic.id, false, false);
       setProgress(p => ({ ...p, mastery, attempts: p.attempts + 1, streak: 0 }));
-      setFeedback({ kind: 'try', text: `I read ${answer} — not quite yet. Check your work and write again.` });
+      setNote({ tone: 'gentle', text: `${value}? ${NUDGE[nextTries % NUDGE.length]}`, alts });
     }
   };
 
+  const onCircleAnswer = (enclosed: Stroke[]) => {
+    if (locked.current || phase !== 'idle') return;
+    const guess = recognizeNumber(enclosed);
+    if (!guess) return setNote({ tone: 'gentle', text: "I couldn't quite read that — write the number a little bigger, then circle it." });
+    check(guess.value, alternatives(guess).filter(v => v !== guess.value));
+  };
+
+  // The escalation seam: deterministic whisper → local little brain → wiser cloud friend.
   const hint = async () => {
+    if (locked.current || phase !== 'idle') return;
     const n = hints + 1;
     setHints(n);
     const deterministic = n === 1 ? problem.hint1 : problem.hint2;
-    if (modelStatus === 'ready') {
-      setFeedback({ kind: 'quiet', text: 'Thinking on this device…' });
+    if (activeBrain(cloud) && (n >= 2 || tries >= 2)) {
+      setNote({ tone: 'thinking', text: 'One moment — I know a wiser friend…' });
       try {
-        const text = await getLocalHint(formatForTutor(problem), guess ? String(guess.value) : '');
-        return setFeedback({ kind: 'quiet', text: text || deterministic });
-      } catch { /* fall through */ }
+        const asked = `Problem: ${formatForTutor(problem)}. The child has tried ${tries} time(s)${lastRead != null ? `, last circling ${lastRead}` : ''}, and is asking for hint number ${n}. Give one gentle nudge.`;
+        const text = await askCloud(cloud, CLOUD_SYSTEM_PROMPT, asked);
+        if (text) return setNote({ tone: 'muse', text });
+      } catch { /* fall through to the local brain */ }
     }
-    setFeedback({ kind: 'quiet', text: deterministic });
+    if (modelStatus === 'ready') {
+      setNote({ tone: 'thinking', text: 'Let me think…' });
+      try {
+        const text = await getLocalHint(formatForTutor(problem), lastRead != null ? String(lastRead) : '');
+        if (text) return setNote({ tone: 'muse', text });
+      } catch { /* fall through to the deterministic whisper */ }
+    }
+    setNote({ tone: 'muse', text: deterministic });
   };
 
   const enableModel = async () => {
     setModelStatus('loading');
-    try { await loadTutor(setModelMessage); setModelStatus('ready'); setModelMessage('Local tutor ready'); }
-    catch (error) { setModelStatus('error'); setModelMessage(error instanceof Error ? error.message : 'Could not load local tutor.'); }
+    try { await loadTutor(setModelMessage); setModelStatus('ready'); setModelMessage('The little brain is awake.'); }
+    catch (error) { setModelStatus('error'); setModelMessage(error instanceof Error ? error.message : 'Could not load the local tutor.'); }
   };
 
-  const alts = guess ? alternatives(guess).filter(v => v !== guess.value) : [];
+  const keyField = (id: ProviderId, placeholder: string) => <>
+    <input type="password" autoComplete="off" placeholder="paste an API key" aria-label={`${id} API key`}
+      value={cloud.keys[id] ?? ''} onChange={e => updateCloud(c => { c.keys[id] = e.target.value; })} />
+    <input type="text" autoComplete="off" placeholder={placeholder} aria-label={`${id} model`}
+      value={cloud.models[id] ?? ''} onChange={e => updateCloud(c => { c.models[id] = e.target.value; })} />
+  </>;
 
-  return <main className="app-shell">
+  return <main className="diary">
     {flash && <div className="eink-flash" aria-hidden />}
-    <header>
-      <button className="brand" onClick={() => setPanel(panel === 'settings' ? 'none' : 'settings')} aria-expanded={panel === 'settings'}><span>F</span> folio</button>
-      <button className="chapter" onClick={() => setPanel(panel === 'map' ? 'none' : 'map')} aria-expanded={panel === 'map'}>
-        <small>CHAPTER</small><strong>{topic.short}</strong><small className="chapter-open">view the map</small>
-      </button>
-      <div className="progress" aria-label={`${totalSolved} problems solved`}><span>{totalSolved}</span><small>SOLVED</small></div>
-    </header>
 
-    {panel === 'map' && <aside className="panel">
-      <div className="panel-title"><strong>Learning map</strong><button className="close" onClick={() => setPanel('none')}>×</button></div>
-      <p className="panel-note">Every chapter unlocks when the ideas it depends on are mastered — the order comes from a real curriculum graph, not a fixed list.</p>
+    <div className={`leaf ${phase !== 'idle' ? phase : ''}`}>
+      <InkPad clearSignal={clearSignal} eink={eink} onCircleAnswer={onCircleAnswer} onQuestionMark={hint} />
+      <div className="overlay">
+        <div className={`problem ${art ? 'with-art' : ''}`} aria-live="polite">
+          {problem.kind === 'story'
+            ? <p className="story"><Handwrite key={problem.statement} text={problem.statement} /></p>
+            : <>
+                <p className="equation"><Handwrite key={problem.equation} text={problem.equation!} /></p>
+                <p className="whisper"><Handwrite key={problem.statement} text={problem.statement} /></p>
+              </>}
+        </div>
+        {art && <img className="polaroid" src={art} alt="" />}
+        <div className={`note ${note.tone}`} aria-live="polite">
+          {note.tone === 'thinking' && <span className="quill" aria-hidden>✎</span>}
+          <Handwrite key={note.text} text={note.text} />
+          {!!note.alts?.length && <span className="alts"> or was it {note.alts.map(v =>
+            <button key={v} className="alt" onClick={() => check(v)}>{v}</button>)}?</span>}
+        </div>
+      </div>
+    </div>
+
+    <button className="chapter-script" onClick={() => setPanel(panel === 'contents' ? 'none' : 'contents')} aria-expanded={panel === 'contents'}>
+      — {topic.short} —
+    </button>
+    <button className="ribbon" aria-label="Notebook settings" onClick={() => setPanel(panel === 'settings' ? 'none' : 'settings')} aria-expanded={panel === 'settings'} />
+    <button className="dogear" aria-label="Turn to a fresh page" onClick={() => { if (!locked.current && phase === 'idle') turnPage(progress, 'A fresh page, then.'); }} />
+    <span className="pageno" aria-hidden>· {progress.attempts + 1} ·</span>
+    <p className="legend" aria-hidden>circle your answer &nbsp;·&nbsp; draw ? for a hint</p>
+
+    {panel === 'contents' && <aside className="panel">
+      <div className="panel-title"><h2>In this notebook</h2><button className="close" aria-label="Close" onClick={() => setPanel('none')}>×</button></div>
+      <p className="panel-note">{totalSolved} answers found · {progress.streak} in a row right now. Chapters open when the ideas they lean on are yours — the order comes from a real curriculum graph.</p>
       <ul className="map">
         {TOPICS.map(t => {
           const m = progress.mastery[t.id];
@@ -120,50 +217,57 @@ export default function App() {
     </aside>}
 
     {panel === 'settings' && <aside className="panel">
-      <div className="panel-title"><strong>Notebook settings</strong><button className="close" onClick={() => setPanel('none')}>×</button></div>
-      <label><span>E-ink discipline<small>Limited palette, still transitions, page-turn refresh</small></span><input type="checkbox" checked={eink} onChange={e => setEink(e.target.checked)} /></label>
-      <section><strong>Private local tutor</strong><p>Optional. Downloads {MODEL_ID} once and runs it with WebGPU. Your answers never leave this device.</p>
-        <button className="secondary" disabled={modelStatus === 'loading' || modelStatus === 'ready'} onClick={enableModel}>{modelStatus === 'ready' ? 'Tutor ready' : modelStatus === 'loading' ? 'Preparing…' : 'Enable local AI'}</button>
+      <div className="panel-title"><h2>The notebook's secrets</h2><button className="close" aria-label="Close" onClick={() => setPanel('none')}>×</button></div>
+
+      <label className="toggle"><span>E-ink discipline<small>Limited palette, still transitions, page-turn refresh</small></span>
+        <input type="checkbox" checked={eink} onChange={e => setEink(e.target.checked)} /></label>
+
+      <section>
+        <h3>The notebook's own little brain</h3>
+        <p>Optional and private: downloads {MODEL_ID} once and thinks on this device with WebGPU. Nothing written here ever leaves.</p>
+        <button className="inkbutton" disabled={modelStatus === 'loading' || modelStatus === 'ready'} onClick={enableModel}>
+          {modelStatus === 'ready' ? 'Awake and thinking' : modelStatus === 'loading' ? 'Waking up…' : 'Wake the little brain'}</button>
         {modelMessage && <small className={modelStatus === 'error' ? 'error' : ''}>{modelMessage}</small>}
       </section>
-      <button className="text-button" onClick={() => downloadProgress(progress)}>Export my progress</button>
-      <label className="import-button">Import progress<input type="file" accept="application/json,.json" onChange={async event => {
-        const file = event.target.files?.[0]; if (!file) return;
-        try { const imported = parseProgressExport(await file.text()); setProgress(imported); turnPage(imported, 'Welcome back.'); setPanel('none'); }
-        catch (error) { alert(error instanceof Error ? error.message : 'Could not import that file.'); }
-        event.target.value = '';
-      }} /></label>
-      <button className="text-button danger" onClick={() => { if (confirm('Erase all Folio progress?')) { localStorage.clear(); location.reload(); } }}>Start over</button>
+
+      <section>
+        <h3>Wiser friends <em>(bring your own key)</em></h3>
+        <p>With a key, the notebook may quietly consult a big model when someone is truly stuck — hints only, never answers. Keys live in this notebook on this device and are sent only to the company named beside them.</p>
+        {CHAT_PROVIDERS.map(p => <div className="provider" key={p.id}>
+          <span className="provider-name">{p.label}<small>{p.keyHint}</small></span>
+          {keyField(p.id, p.defaultModel)}
+        </div>)}
+        <label className="toggle"><span>Ask first</span>
+          <select value={cloud.brain} onChange={e => updateCloud(c => { c.brain = e.target.value as CloudSettings['brain']; })}>
+            <option value="auto">whoever has a key</option>
+            {CHAT_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select></label>
+      </section>
+
+      <section>
+        <h3>Little pictures</h3>
+        <p>Story pages can get a small drawing, taped in by the notebook. A GPT key draws with gpt-image; otherwise a fal.ai key is used.</p>
+        <div className="provider">
+          <span className="provider-name">fal.ai<small>fal.ai/dashboard/keys</small></span>
+          {keyField('fal', FAL_DEFAULT_MODEL)}
+        </div>
+        <label className="toggle"><span>Draw on story pages</span>
+          <input type="checkbox" checked={cloud.illustrations} onChange={e => updateCloud(c => { c.illustrations = e.target.checked; })} /></label>
+      </section>
+
+      <section>
+        <h3>Keeping the notebook</h3>
+        <button className="text-button" onClick={() => downloadProgress(progress)}>Export my progress</button>
+        <label className="import-button">Import progress<input type="file" accept="application/json,.json" onChange={async event => {
+          const file = event.target.files?.[0]; if (!file) return;
+          try { const imported = parseProgressExport(await file.text()); setProgress(imported); turnPage(imported, 'Welcome back.'); setPanel('none'); }
+          catch (error) { alert(error instanceof Error ? error.message : 'Could not import that file.'); }
+          event.target.value = '';
+        }} /></label>
+        <button className="text-button danger" onClick={() => {
+          if (confirm('Blank every page of this notebook? (Your keys and settings stay.)')) { localStorage.removeItem('folio-progress'); location.reload(); }
+        }}>Start the notebook over</button>
+      </section>
     </aside>}
-
-    <section className="lesson">
-      <div className="lesson-intro">
-        <p>{problem.kind === 'story' ? 'Read the story, work it out below.' : problem.kind === 'missing' ? 'Find the number hiding in the box.' : 'Find the missing number.'}</p>
-        <span>{topic.description}</span>
-      </div>
-
-      {problem.kind === 'story'
-        ? <div className="story">{problem.statement}</div>
-        : <div className="problem-row"><div className="equation">{problem.equation}</div></div>}
-
-      <InkPad clearSignal={clearSignal} eink={eink} onAnswerStrokes={onAnswerStrokes} />
-
-      <div className="read-row" aria-live="polite">
-        {guess
-          ? <>
-              <span className="read-label">I read:</span><strong className="read-value">{guess.value}</strong>
-              {alts.length > 0 && <span className="read-alts">or did you mean {alts.map(v => <button key={v} className="chip" onClick={() => { setGuess(g => g && { ...g, value: v }); }}>{v}</button>)}?</span>}
-            </>
-          : <span className="read-label quiet">Write your answer in the dashed box — no keyboard here.</span>}
-      </div>
-
-      <div className={`feedback ${feedback.kind}`} aria-live="polite"><span>{feedback.kind === 'good' ? '✓' : feedback.kind === 'try' ? '↺' : '✦'}</span><p>{feedback.text}</p></div>
-      <div className="actions">
-        <button className="secondary" onClick={hint}>Give me a hint</button>
-        <button className="secondary" onClick={() => { setGuess(null); setClearSignal(n => n + 1); }}>Clear the page</button>
-        <button className="primary" onClick={() => check()} disabled={!guess}>Check my answer <span>→</span></button>
-      </div>
-    </section>
-    <footer><span>Progress stays on this device</span><i>•</i><span>{progress.streak} answer streak</span><i>•</i><span>{topicById.get(problem.topicId)?.standards[0]}</span></footer>
   </main>;
 }
