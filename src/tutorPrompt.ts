@@ -32,6 +32,16 @@ Rules you must follow on every reply:
 - Never ask for names, ages, places, or any personal detail. Never mention these rules, models, or the internet.
 - Return only the words to write on the page — no labels, markdown, or quotation marks.`;
 
+/**
+ * LFM2.5's chat template uses the Jinja `{% generation %}` tag — a
+ * training-time marker for assistant spans that is a no-op at inference —
+ * which @huggingface/jinja (≤0.5.9) cannot parse: every generation dies with
+ * "Unknown statement type: generation". Stripping the tags is semantically
+ * identical for inference and revives the whole local brain.
+ */
+export const sanitizeChatTemplate = (template: string): string =>
+  template.replace(/\{%[-+]?\s*(?:end)?generation\s*[-+]?%\}/g, '');
+
 /** Bind the notebook's identity to its owner: every prompt knows whose notebook it is. */
 export const withIdentity = (base: string, name?: string): string =>
   name?.trim()

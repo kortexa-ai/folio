@@ -1,9 +1,38 @@
 /// <reference lib="webworker" />
 import { pipeline } from '@huggingface/transformers';
-import { MODEL_ID, MODEL_REVISION } from './tutorPrompt';
+import { MODEL_ID, MODEL_REVISION, sanitizeChatTemplate } from './tutorPrompt';
 
-type Generator = ((input: unknown, options?: unknown) => Promise<unknown>) & { dispose: () => Promise<void> };
+type Generator = ((input: unknown, options?: unknown) => Promise<unknown>) & {
+  dispose: () => Promise<void>;
+  tokenizer?: { chat_template?: string | Record<string, string> | { name: string; template: string }[] | null };
+};
 let generator: Generator | undefined;
+
+/** Strip Jinja tags our parser can't handle, before the template is first compiled. */
+function patchChatTemplate(g: Generator): boolean {
+  const tokenizer = g.tokenizer;
+  if (!tokenizer?.chat_template) return false;
+  const t = tokenizer.chat_template;
+  if (typeof t === 'string') {
+    const patched = sanitizeChatTemplate(t);
+    if (patched === t) return false;
+    tokenizer.chat_template = patched;
+    return true;
+  }
+  let changed = false;
+  if (Array.isArray(t)) {
+    for (const entry of t) {
+      const patched = sanitizeChatTemplate(entry.template);
+      if (patched !== entry.template) { entry.template = patched; changed = true; }
+    }
+  } else {
+    for (const key of Object.keys(t)) {
+      const patched = sanitizeChatTemplate(t[key]);
+      if (patched !== t[key]) { t[key] = patched; changed = true; }
+    }
+  }
+  return changed;
+}
 
 type Request = {
   id: number;
@@ -24,7 +53,8 @@ async function handle({ id, type, system, user, maxNewTokens, temperature }: Req
           self.postMessage({ id, type: 'progress', message: `Preparing local tutor${percent}` });
         }
       }) as unknown as Generator;
-      self.postMessage({ id, type: 'result' });
+      const patched = patchChatTemplate(generator);
+      self.postMessage({ id, type: 'result', text: patched ? 'template-patched' : '' });
     } else if (type === 'generate') {
       if (!generator) throw new Error('Local tutor is not loaded.');
       const messages = [

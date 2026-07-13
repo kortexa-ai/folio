@@ -68,6 +68,19 @@ describe('wonder validators (explore mode)', () => {
   });
 });
 
+describe('chat template sanitizer', () => {
+  it('strips generation tags the jinja parser cannot handle, leaving the rest intact', async () => {
+    const { sanitizeChatTemplate } = await import('./tutorPrompt');
+    const template = '{% for m in messages %}{% if m.role == "assistant" %}{% generation %}{{ m.content }}{% endgeneration %}{% else %}{{ m.content }}{% endif %}{% endfor %}';
+    const patched = sanitizeChatTemplate(template);
+    expect(patched).not.toContain('generation');
+    expect(patched).toContain('{% for m in messages %}');
+    expect(patched).toContain('{{ m.content }}');
+    expect(sanitizeChatTemplate('{%- generation -%}x{%- endgeneration -%}')).toBe('x');
+    expect(sanitizeChatTemplate('no tags here')).toBe('no tags here');
+  });
+});
+
 describe('deterministic fallbacks', () => {
   it('openings weave in the name or an interest', () => {
     expect(fallbackOpening('dragons', 'Maya', () => 0.2)).toContain('Maya');

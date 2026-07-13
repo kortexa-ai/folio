@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { InkPad, type InkPadHandle } from './InkPad';
 import { chooseTopic, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, problemSignature, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
 import { alternatives, isConfident, isLegible, recognizeNumber, type Stroke } from './recognizer';
-import { getLocalHint, loadTutor, MODEL_ID, sleepTutor, tookDownLastSession } from './localTutor';
+import { getLocalHint, isAwake, loadTutor, MODEL_ID, sleepTutor, tookDownLastSession } from './localTutor';
 import { acceptContribution, acceptPassage, CREATE_SYSTEM, fallbackOpening, localContribution, localPassage, localTopics, PASSAGE_SYSTEM, prefetchQuip, prefetchStory, takeQuip, takeStory } from './voice';
 import { activeBrain, askCloud, CHAT_PROVIDERS, FAL_DEFAULT_MODEL, generateIllustration, imageProvider, loadCloudSettings, saveCloudSettings, type CloudSettings, type ProviderId } from './cloud';
 import { CLOUD_SYSTEM_PROMPT, withIdentity } from './tutorPrompt';
@@ -416,7 +416,9 @@ export default function App() {
         catch { /* fall through to the local brain */ }
       }
       passage ??= await localPassage(chosen, learner);
-      passage ??= "That's a wonderful thing to wonder about — wake my little brain, or lend me a key, and I'll tell you true things about it.";
+      passage ??= isAwake()
+        ? 'My little brain stumbled on that one — tap it again, or pick another wonder.'
+        : "That's a wonderful thing to wonder about — wake my little brain, or lend me a key, and I'll tell you true things about it.";
       setExplorePassage(passage);
       setNote({ tone: 'muse', text: 'Draw what you imagine — or draw a ? for new wonders.' });
       if (cloud.illustrations && imageProvider(cloud)) {

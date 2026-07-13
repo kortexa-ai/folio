@@ -53,14 +53,14 @@ export async function loadTutor(onProgress?: (message: string) => void) {
   setSentinel(true); // armed through the risky part — a crash here leaves it behind
   let lastMilestone = -1;
   try {
-    await askWorker({ type: 'load' }, message => {
+    const result = await askWorker({ type: 'load' }, message => {
       const percent = Number(message.match(/(\d+)%/)?.[1] ?? -1);
       const milestone = Math.floor(percent / 25);
       if (percent >= 0 && milestone > lastMilestone) { lastMilestone = milestone; logEvent(`brain: loading ${percent}%`); }
       onProgress?.(message);
     });
     awake = true;
-    logEvent('brain: awake');
+    logEvent(result === 'template-patched' ? 'brain: awake (chat template patched: generation tags stripped)' : 'brain: awake');
   } catch (error) {
     setSentinel(false); // a clean failure is not a crash
     logEvent(`brain: load failed cleanly — ${error instanceof Error ? error.message : String(error)}`);
