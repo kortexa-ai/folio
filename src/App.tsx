@@ -212,7 +212,7 @@ export default function App() {
       setNote({ tone: 'gentle', text: `${value}? ${NUDGE[nextTries % NUDGE.length]}`, alts });
     } else {
       // an uncertain reading: answer the child, but never mark the mastery model
-      setNote({ tone: 'gentle', text: `Is that a ${value}? If so — not quite yet. Write it big and clear if I misread you.`, alts });
+      setNote({ tone: 'gentle', text: `Is that a ${value}? If so — not quite yet.`, alts });
     }
   };
 
@@ -222,12 +222,16 @@ export default function App() {
     if (!guess) return;
     if (!isLegible(guess)) {
       // Probably a circled drawing (groups, arrays) — stay quiet unless it
-      // looks like a deliberate answer: a couple of good-sized strokes.
+      // looks like a deliberate answer: a couple of good-sized strokes. Then
+      // offer the best readings as tappable chips so no one gets stuck.
       const tall = enclosed.some(s => {
         const ys = s.map(p => p.y);
         return Math.max(...ys) - Math.min(...ys) >= 24;
       });
-      if (enclosed.length <= 4 && tall) setNote({ tone: 'gentle', text: "I couldn't quite read that — write the number a little bigger, then circle it." });
+      if (enclosed.length <= 4 && tall) {
+        const candidates = [guess.value, ...alternatives(guess)].filter((v, i, a) => a.indexOf(v) === i).slice(0, 3);
+        setNote({ tone: 'gentle', text: "I couldn't quite read that — write it bigger, or tap the number you meant.", alts: candidates });
+      }
       return;
     }
     const alts = alternatives(guess).filter(v => v !== guess.value);
@@ -258,8 +262,14 @@ export default function App() {
       setNote({ tone: 'thinking', text: 'Let me think…' });
       try {
         const text = await getLocalHint(formatForTutor(problem), lastRead != null ? String(lastRead) : '');
-        if (text) return setNote({ tone: 'muse', text });
-      } catch { /* fall through to the deterministic whisper */ }
+        if (text) {
+          logEvent(`voice: local hint served (${text.length} chars)`);
+          return setNote({ tone: 'muse', text });
+        }
+        logEvent('voice: local hint came back empty');
+      } catch (error) {
+        logEvent(`voice: local hint failed — ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     setNote({ tone: 'muse', text: deterministic });
   };

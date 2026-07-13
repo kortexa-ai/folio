@@ -6,6 +6,7 @@
 
 import { makeProblem, type Problem, type Topic } from './curriculum';
 import { generate, isAwake } from './localTutor';
+import { logEvent } from './journal';
 
 export const REWRITE_SYSTEM = `You retell tiny arithmetic story problems for a young child's notebook.
 Rules:
@@ -39,7 +40,7 @@ export function acceptRewrite(original: string, answer: number, rewrite: string)
 /** Accept a praise quip only if it is short, plain, and number-free. */
 export function acceptQuip(quip: string): string | null {
   const text = quip.trim().replace(/^["'“‘]+|["'’”]+$/g, '').replace(/\s+/g, ' ').trim();
-  if (!text || text.length > 48 || /\d/.test(text) || /[*#>`_:]/.test(text)) return null;
+  if (!text || text.length > 60 || /\d/.test(text) || /[*#>`_:]/.test(text)) return null;
   return text;
 }
 
@@ -73,9 +74,12 @@ export function prefetchStory(topic: Topic, interests: string): void {
       if (story) {
         const [hint1, hint2] = NEUTRAL_HINTS[topic.generator] ?? NEUTRAL_HINTS.default;
         storyPool.set(topic.id, { ...problem, statement: story, hint1, hint2 });
+        logEvent('voice: story accepted');
+      } else {
+        logEvent(`voice: story rejected (${raw.trim().length} chars, ${(raw.match(/\d+/g) ?? []).length} numbers)`);
       }
     })
-    .catch(() => { /* the deterministic story is always there */ })
+    .catch(error => logEvent(`voice: story generation failed — ${error instanceof Error ? error.message : String(error)}`))
     .finally(() => { storyInflight = false; });
 }
 
@@ -96,9 +100,14 @@ export function prefetchQuip(problem: Problem): void {
     { maxNewTokens: 24, temperature: 0.9 })
     .then(raw => {
       const quip = acceptQuip(raw);
-      if (quip) quipPool.set(key, quip.endsWith('.') || quip.endsWith('!') ? quip : `${quip}!`);
+      if (quip) {
+        quipPool.set(key, quip.endsWith('.') || quip.endsWith('!') ? quip : `${quip}!`);
+        logEvent('voice: quip accepted');
+      } else {
+        logEvent(`voice: quip rejected (${raw.trim().length} chars)`);
+      }
     })
-    .catch(() => { /* the praise pool is always there */ })
+    .catch(error => logEvent(`voice: quip generation failed — ${error instanceof Error ? error.message : String(error)}`))
     .finally(() => { quipInflight = false; });
 }
 

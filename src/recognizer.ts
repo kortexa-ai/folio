@@ -89,9 +89,18 @@ const T: Record<string, Stroke[][]> = {
   '2': [[[...arc(50, 26, 26, 22, 180, 340), ...line(74, 36, 22, 96), ...line(22, 96, 80, 96)]]],
   '3': [[[...arc(48, 27, 24, 23, 160, 400), ...arc(48, 73, 26, 24, -80, 160)]]],
   '4': [[line(58, 4, 24, 62), line(24, 62, 84, 62), line(64, 30, 64, 96)],
-        [[...line(58, 4, 24, 62), ...line(24, 62, 84, 62)], line(64, 30, 64, 96)]],
+        [[...line(58, 4, 24, 62), ...line(24, 62, 84, 62)], line(64, 30, 64, 96)],
+        // the "open 4" kids write: a vertical arm instead of a diagonal
+        [[...line(30, 8, 29, 54), ...line(29, 54, 76, 56)], line(64, 18, 66, 94)],
+        [line(30, 8, 30, 54), line(30, 54, 76, 55), line(64, 18, 66, 94)],
+        // traced from a real pilot page (2026-07-13): wide open 4, long descender
+        [[...line(14, 0, 11, 55), ...line(11, 55, 88, 58)], line(79, 10, 83, 100)]],
   '5': [[[...line(74, 6, 32, 6), ...line(32, 6, 28, 46), ...arc(48, 68, 26, 28, -110, 150)]],
-        [line(74, 6, 32, 6), [...line(32, 6, 28, 46), ...arc(48, 68, 26, 28, -110, 150)]]],
+        [line(74, 6, 32, 6), [...line(32, 6, 28, 46), ...arc(48, 68, 26, 28, -110, 150)]],
+        // top bar drawn left-to-right from the stem, rounder belly
+        [line(38, 10, 78, 8), [...line(40, 12, 36, 46), ...arc(52, 66, 28, 28, -105, 150)]],
+        // traced from a real pilot page (2026-07-13)
+        [line(13, 3, 64, 0), [...line(15, 5, 10, 49), ...arc(31, 72, 31, 28, -100, 150)]]],
   '6': [[[...arc(58, 34, 34, 42, -70, -178), ...arc(48, 70, 24, 26, 178, 500)]]],
   '7': [[[...line(22, 8, 80, 8), ...line(80, 8, 42, 96)]],
         [[...line(22, 8, 80, 8), ...line(80, 8, 42, 96)], line(30, 52, 66, 52)]],
@@ -165,12 +174,12 @@ export function recognizeNumber(strokes: Stroke[]): NumberGuess | null {
 // The notebook has no buttons: circling ink hands an answer in, and a drawn
 // question mark asks for a hint.
 
-const strokeCentroid = (s: Stroke): Point => ({
+export const strokeCentroid = (s: Stroke): Point => ({
   x: s.reduce((a, p) => a + p.x, 0) / s.length,
   y: s.reduce((a, p) => a + p.y, 0) / s.length,
 });
 
-function pointInPolygon(p: Point, poly: Point[]): boolean {
+export function pointInPolygon(p: Point, poly: Point[]): boolean {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const a = poly[i], b = poly[j];
@@ -193,6 +202,23 @@ export function detectAnswerCircle(candidate: Stroke, others: Stroke[]): Stroke[
   if (gap > 0.45 * Math.max(w, h)) return null;
   const enclosed = others.filter(s => s.length > 1 && pointInPolygon(strokeCentroid(s), candidate));
   return enclosed.length ? enclosed : null;
+}
+
+/**
+ * A big closed loop around nothing: an empty answer ring, drawn before the
+ * number (kids do this). The size floor keeps handwritten zeros out — safe
+ * because no generated problem has 0 as its answer.
+ */
+export function isEmptyRing(candidate: Stroke): boolean {
+  if (candidate.length < 8) return false;
+  const b = bounds(candidate);
+  const w = b.maxX - b.minX, h = b.maxY - b.minY;
+  if (Math.min(w, h) < 70) return false;
+  const diag = Math.hypot(w, h);
+  const gap = Math.hypot(candidate[0].x - candidate[candidate.length - 1].x, candidate[0].y - candidate[candidate.length - 1].y);
+  if (gap > 0.45 * Math.max(w, h)) return false;
+  const loopiness = pathLength(candidate) / diag;
+  return loopiness > 1.9 && loopiness < 4.5; // one lap — not a stroke, not a scribble
 }
 
 /** Does this group of strokes read as a drawn question mark (hint, please)? */

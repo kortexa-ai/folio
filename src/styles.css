@@ -61,10 +61,11 @@ button { cursor: pointer; }
 .equation { margin: 0; font-family: var(--hand); font-size: clamp(44px, 8vw, 74px); line-height: 1.2; color: var(--diary); letter-spacing: .02em; }
 .whisper { margin: 8px 0 0 6px; font-family: var(--hand); font-size: clamp(14px, 1.9vw, 17px); color: var(--diary-soft); }
 
-/* Ink-soak reveal for anything the notebook writes. */
+/* Ink-soak reveal for anything the notebook writes. Opacity only: animating
+   a blur filter across hundreds of glyphs freezes mid-way on iOS Safari. */
 .hw-word { display: inline-block; white-space: pre; margin-right: .3em; }
-.hw-ch { opacity: 0; animation: inkin .45s ease-out forwards; }
-@keyframes inkin { from { opacity: 0; filter: blur(2.5px); } to { opacity: 1; filter: blur(0); } }
+.hw-ch { opacity: 0; animation: inkin .5s ease-out forwards; }
+@keyframes inkin { from { opacity: 0; } to { opacity: 1; } }
 
 /* The notebook's replies, written near the foot of the page. */
 .note {

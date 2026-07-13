@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectAnswerCircle, detectScratchOut, groupStrokes, isConfident, isLegible, isQuestionMark, recognizeDigit, recognizeNumber, type Stroke } from './recognizer';
+import { detectAnswerCircle, detectScratchOut, groupStrokes, isConfident, isEmptyRing, isLegible, isQuestionMark, recognizeDigit, recognizeNumber, type Stroke } from './recognizer';
 
 const wobble = (s: Stroke, amp: number, seed = 7): Stroke => {
   let x = seed;
@@ -109,6 +109,47 @@ describe('scratch-out gesture', () => {
     expect(detectScratchOut(digit8, [victim])).toBeNull();
     expect(detectScratchOut(arc(180, 150, 50, 44, -90, 260, 24), [victim])).toBeNull();
     expect(detectScratchOut(line(150, 150, 210, 152, 12), [victim])).toBeNull();
+  });
+});
+
+describe('kid digit shapes from the field (2026-07-13 screenshots)', () => {
+  it('reads an open 4 with a vertical arm, confidently', () => {
+    // traced from the pilot iPhone: vertical down, along, then a crossing descender
+    const arm: Stroke = [...line(355, 745, 350, 830, 10), ...line(350, 830, 470, 835, 12)];
+    const cross: Stroke = line(455, 760, 462, 900, 12);
+    const guess = recognizeNumber([arm, cross])!;
+    expect(guess.value).toBe(4);
+    expect(isConfident(guess)).toBe(true);
+  });
+  it('reads a wobbly open 4 as at least legible with 4 among the top guesses', () => {
+    const arm = wobble([...line(355, 745, 350, 830, 10), ...line(350, 830, 470, 835, 12)], 6);
+    const cross = wobble(line(455, 760, 462, 900, 12), 6);
+    const guess = recognizeNumber([arm, cross])!;
+    const candidates = [guess.value, ...guess.digits[0].slice(0, 3).map(d => Number(d.digit))];
+    expect(candidates).toContain(4);
+  });
+  it('reads a 5 with the bar drawn from the stem — legible, so a correct 5 is accepted', () => {
+    const bar: Stroke = line(430, 850, 530, 845, 10);
+    const rest: Stroke = [...line(435, 855, 425, 940, 8), ...arc(465, 985, 60, 55, -100, 150, 16)];
+    const guess = recognizeNumber([bar, rest])!;
+    expect(guess.value).toBe(5);
+    expect(isLegible(guess)).toBe(true);
+  });
+});
+
+describe('empty answer rings (circle first, write after)', () => {
+  it('a big closed loop is an empty ring; a digit-sized zero is not', () => {
+    expect(isEmptyRing(arc(300, 300, 90, 100, -90, 262, 30))).toBe(true);
+    expect(isEmptyRing(arc(300, 300, 28, 42, -90, 265, 24))).toBe(false);
+  });
+  it('an open curve and a dense scribble are not rings', () => {
+    expect(isEmptyRing(arc(300, 300, 90, 100, -90, 120, 20))).toBe(false);
+    const scribble: Stroke = [];
+    for (let i = 0; i < 8; i++) {
+      const y = 260 + i * 12;
+      scribble.push(...(i % 2 === 0 ? line(220, y, 380, y + 5, 7) : line(380, y, 220, y + 5, 7)));
+    }
+    expect(isEmptyRing(scribble)).toBe(false);
   });
 });
 

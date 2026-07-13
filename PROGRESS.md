@@ -161,6 +161,30 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v4.4: field fixes from the first real kid pages (2026-07-13)
+
+Two pilot screenshots (iPhone Safari) surfaced real stuck states — no crashes; the brain loads.
+
+- **The "open 4"**: the kid writes 4 with a vertical arm (the most common kid form); our
+  templates only had diagonal 4s, so their *correct* answer read as illegible forever. Added
+  open-4 variants plus templates traced from the actual screenshots (a real handwriting sample
+  is the best template); same for their 5. Field shapes are now regression tests.
+- **Circle-first, write-after**: kids draw the ring first and then write inside it — nothing
+  ever re-read the ring, a silent dead end. A big closed loop now becomes a waiting answer ring
+  (promoted only when ink lands inside it, so the 0 in a written "10" is never stolen), and
+  writing inside any ring re-reads it after a 900ms settle.
+- **Never stuck again**: unreadable-but-deliberate circles now offer the recognizer's top
+  candidates as tappable chips ("write it bigger, or tap the number you meant"), and the
+  confusing "write it big and clear" sentence is gone from the uncertain-read reply.
+- **Frozen half-blurred text**: iOS Safari pauses mid-animation when hundreds of glyphs animate
+  a blur filter; the ink-soak reveal is now opacity-only.
+- **"Not sure the model generates anything"**: probably strict validators silently rejecting
+  230M output. The voice pipeline now journals accepted/rejected/failed (with lengths, never
+  content) and local hints journal served/empty/failed — the next journal paste will show the
+  acceptance rate. Quip length cap loosened 48→60.
+- Verified in-browser: empty ring → silent; digit written inside → checked and praised after
+  the settle; kid-4 circled → reads as 4; wrong answer → chips offered; chip tap → praised.
+
 ## v4.3: the black-box journal (2026-07-13)
 
 The pilot user has no computer attached to the iPad, so the notebook now carries its own

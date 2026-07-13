@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { detectAnswerCircle, detectScratchOut, isQuestionMark, type Stroke } from './recognizer';
+import { detectAnswerCircle, detectScratchOut, isEmptyRing, isQuestionMark, pointInPolygon, strokeCentroid, type Stroke } from './recognizer';
 
 type InkStroke = {
   points: { x: number; y: number; pressure: number }[];
@@ -35,6 +35,7 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
   const penActive = useRef(false);
   const lastEnd = useRef<{ stroke: InkStroke; at: number } | null>(null);
   const fadeTimer = useRef(0);
+  const ringRecheck = useRef(0);
 
   const draw = () => {
     const canvas = canvasRef.current;
@@ -101,7 +102,7 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
   };
 
   useEffect(() => { resize(); addEventListener('resize', resize); return () => removeEventListener('resize', resize); }, []);
-  useEffect(() => { strokes.current = []; active.current = null; lastEnd.current = null; draw(); }, [clearSignal]);
+  useEffect(() => { strokes.current = []; active.current = null; lastEnd.current = null; clearTimeout(ringRecheck.current); draw(); }, [clearSignal]);
   useEffect(draw, [eink]);
 
   useImperativeHandle(handle, () => ({
@@ -168,6 +169,22 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
         absorb(group);
         return onQuestionMark();
       }
+    }
+    // Kids also draw the circle FIRST and write inside it. Writing inside an
+    // existing ring — or inside a big empty loop, which only NOW becomes a
+    // ring (so the 0 in a written "10" is never mistaken for one) — re-reads
+    // it after a pause long enough to finish a multi-stroke digit.
+    const container = strokes.current.find(s =>
+      s !== finished && s.fadeStart == null &&
+      (s.kind === 'ring' || (s.kind === 'ink' && isEmptyRing(s.points))) &&
+      pointInPolygon(strokeCentroid(finished.points), s.points));
+    if (container) {
+      container.kind = 'ring';
+      clearTimeout(ringRecheck.current);
+      ringRecheck.current = window.setTimeout(() => {
+        const inside = strokes.current.filter(s => s.kind === 'ink' && s.fadeStart == null && pointInPolygon(strokeCentroid(s.points), container.points));
+        if (inside.length) onCircleAnswer(inside.map(s => s.points));
+      }, 900);
     }
   };
 
