@@ -180,7 +180,8 @@ human action with natural pauses.
   with the lab (AutoModelForCausalLM + streaming) and then accepting cloud-only flavor on
   phones. Validator tuning for 230M output quality (quips rejected at ~32 chars presumably for
   digits/punctuation; retellings adding numbers) is queued behind stability.
-\n## v5.1: match the lab's known-good LFM stack (2026-07-13)
+
+## v5.1: match the lab's known-good LFM stack (2026-07-13)
 
 Field journal #3: the template patch worked — `brain: awake (chat template patched)` followed
 by the first ever `voice: passage accepted` — then the tab died seconds later (no pagehide;
