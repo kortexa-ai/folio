@@ -161,6 +161,18 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v5.3: worker parity with the lab (2026-07-13)
+
+Pacing alone didn't save the phone tab, so the worker is now a mirror of
+kortexa-ai/lfm-2.5-230m.lab's: AutoTokenizer + AutoModelForCausalLM.generate + TextStreamer
+(text accumulated via the streamer, skip_prompt/skip_special_tokens), with the sanitized chat
+template passed per apply_chat_template call instead of mutated on the tokenizer, and
+do_sample derived from temperature. Same message protocol, queue, and crash sentinel as
+before; the pipeline() wrapper is gone. This is the last structural difference from the
+configuration known to run this model in-browser — if the tab still dies on a single
+on-demand generation, the finding is that a 230M in a Safari tab on this phone is out of
+budget alongside the app, and phones go cloud-flavored only.
+
 ## v5.2: pace the brain — no ambient generation on phones (2026-07-13)
 
 Field journal #4, with the new breadcrumbs: same stack as the lab, and the crash pattern is now
