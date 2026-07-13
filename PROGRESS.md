@@ -161,6 +161,26 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v5.1: match the lab's known-good LFM stack (2026-07-13)
+
+Field journal #3: the template patch worked — `brain: awake (chat template patched)` followed
+by the first ever `voice: passage accepted` — then the tab died seconds later (no pagehide;
+crash-guard caught it). The model now speaks; speaking exhausts tab memory.
+
+Compared against `kortexa-ai/lfm-2.5-230m.lab` (the user's own in-browser LFM2.5-230M chat,
+fetched via raw.githubusercontent at the user's request):
+- The lab independently ships the identical `{% generation %}` sanitizer — validating v5.0's fix.
+- Same model, same q4 dtype, same WebGPU worker shape.
+- **Different stack**: lab pins `@huggingface/transformers 4.0.0-next.4` with an explicit
+  `onnxruntime-web 1.25.0-dev.20260212` override; folio had 4.2.0 with its bundled (newer)
+  ORT `1.26.0-dev.20260416`. ORT WebGPU dev builds regress often; the newer build is the prime
+  suspect for the on-device memory blowup. Folio now pins the lab's exact pair (npm `overrides`).
+- Every local generation now journals a `brain: generating <label>` breadcrumb first, so the
+  next crash names the call that was running (quip / retelling / story beat / topics / passage /
+  hint).
+- Verified: 83 tests, clean build, app boots and serves pages on the pinned stack. The decisive
+  test is on-device: generate a few passages/beats in a row and watch for the crash-guard.
+
 ## v5: a notebook with three kinds of pages (2026-07-13)
 
 Three features requested mid-pilot: an intro, a creative mode, and an explore mode.

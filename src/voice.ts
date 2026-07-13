@@ -70,7 +70,7 @@ export function prefetchStory(topic: Topic, interests: string, name?: string): v
   const user = `Story: ${problem.statement}\nNumbers that must appear unchanged: ${requiredNumbers(problem.statement).join(', ')}.` +
     (interests.trim() ? `\nThe child's favorite things: ${interests.trim()}.` : '') +
     (name?.trim() ? `\nYou may make ${name.trim()} the hero of the story.` : '') + '\nRetell it.';
-  generate(withIdentity(REWRITE_SYSTEM, name), user, { maxNewTokens: 90, temperature: 0.8 })
+  generate(withIdentity(REWRITE_SYSTEM, name), user, { maxNewTokens: 90, temperature: 0.8 }, 'retelling')
     .then(raw => {
       const story = acceptRewrite(problem.statement, problem.answer, raw);
       if (story) {
@@ -99,7 +99,7 @@ export function prefetchQuip(problem: Problem, name?: string): void {
   if (quipPool.has(key)) return;
   quipInflight = true;
   generate(withIdentity(QUIP_SYSTEM, name), `The problem was: ${problem.statement} The child just got it right. Cheer once.`,
-    { maxNewTokens: 24, temperature: 0.9 })
+    { maxNewTokens: 24, temperature: 0.9 }, 'quip')
     .then(raw => {
       const quip = acceptQuip(raw);
       if (quip) {
@@ -209,7 +209,7 @@ export async function localContribution(storySoFar: string[], interests: string,
       const user = `The story so far:\n${storySoFar.slice(-4).join('\n')}\n` +
         (interests.trim() ? `The child loves: ${interests.trim()}.\n` : '') +
         'The child has just added their own part in ink. Continue with the next beat.';
-      const raw = await generate(withIdentity(CREATE_SYSTEM, name), user, { maxNewTokens: 60, temperature: 0.9 });
+      const raw = await generate(withIdentity(CREATE_SYSTEM, name), user, { maxNewTokens: 60, temperature: 0.9 }, 'story beat');
       const beat = acceptContribution(raw);
       logEvent(beat ? 'voice: story beat accepted' : `voice: story beat rejected (${raw.trim().length} chars)`);
       if (beat) return beat;
@@ -224,7 +224,7 @@ export async function localTopics(interests: string, name?: string): Promise<str
     try {
       const raw = await generate(withIdentity(TOPICS_SYSTEM, name),
         interests.trim() ? `The child loves: ${interests.trim()}. Offer three topics.` : 'Offer three topics.',
-        { maxNewTokens: 36, temperature: 0.9 });
+        { maxNewTokens: 36, temperature: 0.9 }, 'topics');
       const topics = acceptTopics(raw);
       logEvent(topics ? 'voice: topics accepted' : `voice: topics rejected (${raw.trim().length} chars)`);
       if (topics) return topics;
@@ -238,7 +238,7 @@ export async function localPassage(topic: string, name?: string): Promise<string
   if (!isAwake()) return null;
   try {
     const raw = await generate(withIdentity(PASSAGE_SYSTEM, name), `The topic: ${topic}. Tell one wondrous true thing.`,
-      { maxNewTokens: 90, temperature: 0.7 });
+      { maxNewTokens: 90, temperature: 0.7 }, 'passage');
     const passage = acceptPassage(raw);
     logEvent(passage ? 'voice: passage accepted' : `voice: passage rejected (${raw.trim().length} chars)`);
     return passage;

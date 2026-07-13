@@ -85,14 +85,17 @@ if (typeof document !== 'undefined') {
 }
 
 /** One grounded generation. Callers must validate the output before showing it. */
-export function generate(system: string, user: string, options: { maxNewTokens?: number; temperature?: number } = {}) {
+export function generate(system: string, user: string, options: { maxNewTokens?: number; temperature?: number } = {}, label = 'text') {
+  // Breadcrumb BEFORE the risky part: if the tab dies mid-generation, the
+  // journal names exactly which call was running.
+  logEvent(`brain: generating ${label}`);
   return askWorker({ type: 'generate', system, user, ...options });
 }
 
 export function getLocalHint(problem: string, attempt: string, name?: string) {
   return generate(withIdentity(SYSTEM_PROMPT, name),
     `Problem: ${problem}. Learner's attempt: ${attempt || 'no answer yet'}. Give one hint.`,
-    { maxNewTokens: 42, temperature: 0.3 });
+    { maxNewTokens: 42, temperature: 0.3 }, 'hint');
 }
 
 if (typeof addEventListener === 'function') {
