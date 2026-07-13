@@ -90,6 +90,14 @@ export default function App() {
   const resetTimer = useRef(0);
   const pad = useRef<InkPadHandle>(null);
   const recentPages = useRef<Record<string, string[]>>({}); // last few problem signatures per topic
+  // Ambient generation pacing: the lab generates once per human action; a
+  // burst of back-to-back background generations right after wake is exactly
+  // when iOS reclaims the tab. Phones get no ambient generation at all —
+  // the brain still answers every user-initiated ask (hints, beats, wonders).
+  const ambientBrain = useRef(typeof window !== 'undefined' && window.innerWidth >= 680);
+  const ambientNoteLogged = useRef(false);
+  const lastPrefetchAt = useRef(Date.now());
+  const prefetchFlip = useRef(false);
   // creative/explore time bookkeeping (batched into progress on flush)
   const strokesSinceBeat = useRef(0);
   const lastInkAt = useRef(0);
@@ -149,9 +157,19 @@ export default function App() {
     const seen = (recentPages.current[problem.topicId] ??= []);
     const signature = problemSignature(problem);
     if (!seen.includes(signature)) { seen.push(signature); if (seen.length > 4) seen.shift(); }
-    if (modelStatus === 'ready') {
-      prefetchQuip(problem, learner);
-      prefetchStory(chooseTopic(progress.mastery), interests, learner);
+    if (modelStatus === 'ready' && ambientBrain.current) {
+      // At most ONE background generation per page, never more often than
+      // every 12s, alternating between a cheer and a retelling.
+      const now = Date.now();
+      if (now - lastPrefetchAt.current >= 12_000) {
+        lastPrefetchAt.current = now;
+        if (prefetchFlip.current) prefetchQuip(problem, learner);
+        else prefetchStory(chooseTopic(progress.mastery), interests, learner);
+        prefetchFlip.current = !prefetchFlip.current;
+      }
+    } else if (modelStatus === 'ready' && !ambientNoteLogged.current) {
+      ambientNoteLogged.current = true;
+      logEvent('voice: ambient prefetch disabled (small screen) — the brain answers only when asked');
     }
     clearTimeout(idleTimer.current);
     const delay = Number(localStorage.getItem('folio-idle-ms')) || 40_000;

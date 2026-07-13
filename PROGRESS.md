@@ -161,7 +161,26 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
-## v5.1: match the lab's known-good LFM stack (2026-07-13)
+## v5.2: pace the brain — no ambient generation on phones (2026-07-13)
+
+Field journal #4, with the new breadcrumbs: same stack as the lab, and the crash pattern is now
+legible — `generating quip` and `generating retelling` enqueue in the same millisecond right
+after wake (page-present prefetches), both complete (validators reject the 230M output, as
+expected pre-tuning), and the tab dies ~2s after the last generation: an iOS jetsam kill after
+a memory burst, not a mid-generation failure. The lab never does this — it generates once per
+human action with natural pauses.
+
+- Phones (<680px) get **no ambient generation at all**: no background quips/retellings. The
+  brain still answers every user-initiated ask — hints, story beats, wonder topics, passages —
+  one at a time. Journaled once per session so journals stay interpretable.
+- Wider screens keep ambience but paced: at most one background generation per page, never more
+  often than every 12s, alternating cheer/retelling (and never in the wake-adjacent window,
+  since the pacing clock starts at boot).
+- If a single on-demand generation still kills the phone tab, the next lever is worker parity
+  with the lab (AutoModelForCausalLM + streaming) and then accepting cloud-only flavor on
+  phones. Validator tuning for 230M output quality (quips rejected at ~32 chars presumably for
+  digits/punctuation; retellings adding numbers) is queued behind stability.
+\n## v5.1: match the lab's known-good LFM stack (2026-07-13)
 
 Field journal #3: the template patch worked — `brain: awake (chat template patched)` followed
 by the first ever `voice: passage accepted` — then the tab died seconds later (no pagehide;
