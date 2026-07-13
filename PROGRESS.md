@@ -161,6 +161,30 @@ voice validators, and cloud builders. Verified in-browser end-to-end (erase, sil
 circles, streak dots, mastery star, grown-ups table, v2 migration, idle whisper). The real
 WebGPU generation path still needs an iPad pass — validators and gating are unit-covered.
 
+## v4.2: iOS crash fix — lighter brain + crash-loop guard (2026-07-13)
+
+Field report: the page crashed in Safari on iOS. Diagnosis: the 350M q4 checkpoint can blow
+iOS Safari's per-tab memory budget, and v4's auto-wake turned one bad load into a crash loop
+(crash → reload → auto-wake → crash).
+
+- **Model**: switched to `LiquidAI/LFM2.5-230M-ONNX` (q4) — the concept doc's floor model;
+  LiquidAI's card lists q4 as the smallest/fastest WebGPU option, best on phones. Revision is
+  temporarily `main`: huggingface.co is unreachable from this build environment, so the sha
+  pin should be restored on the next pass.
+- **Crash-loop guard**: a localStorage sentinel is armed while the brain is awake and the page
+  visible; backgrounding (normal iOS PWA reclaim) and clean exits clear it, a crash cannot.
+  Finding it at startup skips the wake, turns the setting off persistently, and explains in
+  settings ("…seemed too heavy for this device last time…"). A clean load failure keeps the
+  setting and just shows the error.
+- **Gentle auto-wake**: waits 2.5s after first paint and never fires without WebGPU.
+- Verified in Chromium with an init-script-planted sentinel (crash path: wake skipped, toggle
+  off, message shown; clean-failure path: setting kept, sentinel cleared). Found and worked
+  around en route: worker fetches bypass Playwright routes, and a clean reload's pagehide
+  rightly clears the sentinel — which is exactly why real crashes (no pagehide) are caught.
+- Still to confirm on the actual iPad: that 230M q4 fits. If it still crashes, the guard now
+  contains the damage and the next candidates are fp16 embeddings variants or CPU (wasm)
+  execution as a fallback tier.
+
 ## v4.1: the tutor sees your work (2026-07-13, autonomous session)
 
 Milestone 2's wildcard from the implementation doc — send the rendered ink to the multimodal

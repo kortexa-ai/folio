@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { InkPad, type InkPadHandle } from './InkPad';
 import { chooseTopic, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
 import { alternatives, isConfident, isLegible, recognizeNumber, type Stroke } from './recognizer';
-import { getLocalHint, loadTutor, MODEL_ID, sleepTutor } from './localTutor';
+import { getLocalHint, loadTutor, MODEL_ID, sleepTutor, tookDownLastSession } from './localTutor';
 import { prefetchQuip, prefetchStory, takeQuip, takeStory } from './voice';
 import { activeBrain, askCloud, CHAT_PROVIDERS, FAL_DEFAULT_MODEL, generateIllustration, imageProvider, loadCloudSettings, saveCloudSettings, type CloudSettings, type ProviderId } from './cloud';
 import { CLOUD_SYSTEM_PROMPT } from './tutorPrompt';
@@ -89,8 +89,28 @@ export default function App() {
     }
   };
 
-  // The little brain wakes with the notebook once it has been invited.
-  useEffect(() => { if (brainOn && modelStatus === 'off') void enableModel(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [brainOn]);
+  // The little brain wakes with the notebook once it has been invited — but
+  // gently: a moment after first paint, never without WebGPU, and never right
+  // after it took the whole page down (the crash-loop guard skips one wake and
+  // leaves the decision to a person).
+  useEffect(() => {
+    if (!brainOn || modelStatus !== 'off') return;
+    if (tookDownLastSession()) {
+      setBrainOn(false);
+      localStorage.removeItem('folio-brain');
+      setModelStatus('error');
+      setModelMessage('Waking the little brain seemed too heavy for this device last time, so I let it sleep. Turn it back on to try again.');
+      return;
+    }
+    if (!('gpu' in navigator)) {
+      setModelStatus('error');
+      setModelMessage('This browser has no WebGPU, so the little brain stays asleep here.');
+      return;
+    }
+    const timer = window.setTimeout(() => void enableModel(), 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brainOn]);
 
   // Each new page: start the clock, arm the idle whisper, and let the brain
   // prepare tomorrow's words (a retold story for the likely next page, and a
@@ -267,9 +287,10 @@ export default function App() {
       if (modelStatus === 'off' || modelStatus === 'error') void enableModel();
     } else {
       localStorage.removeItem('folio-brain');
+      const wasRunning = modelStatus === 'ready' || modelStatus === 'loading';
       setModelStatus('off');
       setModelMessage('');
-      void sleepTutor().catch(() => {});
+      if (wasRunning) void sleepTutor().catch(() => {});
     }
   };
 

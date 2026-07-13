@@ -1,5 +1,9 @@
-export const MODEL_ID = 'LiquidAI/LFM2.5-350M-ONNX';
-export const MODEL_REVISION = 'd11593fd9eb408e322667926656598896c2d5ff9';
+// The smallest LFM2.5 checkpoint — the concept doc's floor. The 350M q4 was
+// too heavy for iOS Safari's per-tab memory budget (tab crashes on load).
+// TODO: pin a commit sha once Hugging Face is reachable from the build
+// environment again; 'main' matches the transformers.js default meanwhile.
+export const MODEL_ID = 'LiquidAI/LFM2.5-230M-ONNX';
+export const MODEL_REVISION = 'main';
 
 export const SYSTEM_PROMPT = `You are Folio, a calm arithmetic tutor for a young learner.
 The learner is practicing early arithmetic (sums, story problems, missing numbers, times tables) in a private, offline notebook. They write by hand; there is no keyboard.

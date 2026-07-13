@@ -27,16 +27,50 @@ const askWorker = (message: object, progress?: (message: string) => void) => new
 /** Is the little brain loaded and ready to think? */
 export const isAwake = () => awake;
 
+// --- crash-loop guard ----------------------------------------------------------
+// Loading a model can kill the tab outright on memory-starved devices (iOS
+// Safari reloads the page, auto-wake fires again — an endless crash loop).
+// A sentinel is kept in localStorage exactly while the brain is awake AND the
+// page is visible; a crash never clears it, while backgrounding and clean
+// exits do. Finding it at startup means last time ended badly.
+const SENTINEL = 'folio-brain-active';
+const setSentinel = (on: boolean) => {
+  try { on ? localStorage.setItem(SENTINEL, String(Date.now())) : localStorage.removeItem(SENTINEL); } catch { /* storage full/blocked */ }
+};
+
+/** Did the last session die while the brain was awake? Clears the flag when read. */
+export function tookDownLastSession(): boolean {
+  const crashed = localStorage.getItem(SENTINEL) != null;
+  setSentinel(false);
+  return crashed;
+}
+
 export async function loadTutor(onProgress?: (message: string) => void) {
   if (!('gpu' in navigator)) throw new Error('WebGPU is not available in this browser.');
   onProgress?.('Opening the local model…');
-  await askWorker({ type: 'load' }, onProgress);
-  awake = true;
+  setSentinel(true); // armed through the risky part — a crash here leaves it behind
+  try {
+    await askWorker({ type: 'load' }, onProgress);
+    awake = true;
+  } catch (error) {
+    setSentinel(false); // a clean failure is not a crash
+    throw error;
+  }
 }
 
 export async function sleepTutor() {
   awake = false;
+  setSentinel(false);
   await askWorker({ type: 'dispose' });
+}
+
+if (typeof document !== 'undefined') {
+  // Backgrounding is a normal way for iOS to reclaim a PWA — only a death
+  // while visible counts as a crash.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) setSentinel(false);
+    else if (awake) setSentinel(true);
+  });
 }
 
 /** One grounded generation. Callers must validate the output before showing it. */
@@ -51,5 +85,5 @@ export function getLocalHint(problem: string, attempt: string) {
 }
 
 if (typeof addEventListener === 'function') {
-  addEventListener('pagehide', () => { if (!worker) return; awake = false; worker.postMessage({ id: ++requestId, type: 'dispose' }); });
+  addEventListener('pagehide', () => { setSentinel(false); if (!worker) return; awake = false; worker.postMessage({ id: ++requestId, type: 'dispose' }); });
 }
