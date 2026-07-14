@@ -12,7 +12,7 @@ import { clearJournal, journalReport, logEvent, readJournal } from './journal';
 type Note = { tone: 'welcome' | 'muse' | 'good' | 'gentle' | 'thinking'; text: string; alts?: number[] };
 type Mode = 'practice' | 'create' | 'explore';
 
-const WELCOME_BODY = "Write anywhere on me: work things out, scribble, cross out. When you're sure of an answer, draw a circle around it. Stuck? Draw a little ? and I'll whisper a hint.";
+const WELCOME_BODY = "Write anywhere on me: work things out, scribble, cross out. Circle an answer when you're sure — or use the little pencil tray below for undo, a hint, or to hand it in.";
 const WELCOME = `Hello — I'm Folio, your notebook. ${WELCOME_BODY}`;
 const PRAISE = ['Yes — exactly right.', "That's the one. Lovely.", 'Beautifully done.', 'Quite right, quite right.', 'You found it.', 'My favorite kind of page.'];
 const NUDGE = ['Hmm, not quite yet. Look at it once more.', "Not this one — but you're close. Try again.", 'Almost. Check your counting, slowly.'];
@@ -469,6 +469,11 @@ export default function App() {
     return void hint();
   };
 
+  const submitInk = () => {
+    if (pad.current?.submit()) return;
+    setNote({ tone: 'muse', text: 'Write an answer on the page first — then hand it in.' });
+  };
+
   const beginNotebook = (name: string) => {
     setIntro(null);
     setNote({ tone: 'welcome', text: name ? `Lovely to meet you, ${name}. ${WELCOME_BODY}` : WELCOME });
@@ -609,6 +614,14 @@ export default function App() {
     }} />
     <span className="pageno" aria-hidden>· {progress.attempts + 1} ·</span>
     <p className="legend" aria-hidden>{LEGEND[mode]}</p>
+    {!intro && <nav className="tool-shelf" aria-label="Notebook tools">
+      <button type="button" onClick={() => pad.current?.undo()} aria-label="Undo last stroke">↶ <span>undo</span></button>
+      <button type="button" onClick={onQuestionMark} disabled={phase !== 'idle' || storyBusy || exploreBusy}
+        aria-label={mode === 'practice' ? 'Ask for a hint' : mode === 'create' ? "Add Folio's turn" : 'Find new wonders'}>
+        ? <span>{mode === 'practice' ? 'hint' : mode === 'create' ? 'my turn' : 'new wonders'}</span>
+      </button>
+      {mode === 'practice' && <button type="button" onClick={submitInk} disabled={phase !== 'idle'} aria-label="Hand in written answer">✓ <span>hand in</span></button>}
+    </nav>}
 
     {panel === 'contents' && <aside className="panel">
       <div className="panel-title"><h2>In this notebook</h2><button className="close" aria-label="Close" onClick={() => setPanel('none')}>×</button></div>

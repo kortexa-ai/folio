@@ -24,6 +24,8 @@ export type InkPadHandle = {
   snapshot: () => string | null;
   /** Remove the newest visible stroke. */
   undo: () => boolean;
+  /** Hand every visible stroke to the answer reader. */
+  submit: () => boolean;
 };
 
 const FADE_MS = 650;
@@ -90,6 +92,13 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
     return true;
   };
 
+  const submit = () => {
+    const live = strokes.current.filter(stroke => stroke.fadeStart == null && stroke.points.length > 1);
+    if (!live.length) return false;
+    onCircleAnswer(live.map(stroke => stroke.points));
+    return true;
+  };
+
   /** Fade absorbed gesture strokes out, then drop them. In e-ink mode they vanish in one refresh. */
   const absorb = (targets: InkStroke[]) => {
     const start = performance.now();
@@ -147,6 +156,7 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
   useEffect(scheduleDraw, [eink]);
 
   useImperativeHandle(handle, () => ({
+    submit,
     undo,
     snapshot: () => {
       const live = strokes.current.filter(s => s.fadeStart == null && s.points.length > 1);
@@ -180,7 +190,7 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
       }
       return canvas.toDataURL('image/jpeg', 0.82);
     },
-  }), [eink]);
+  }));
 
   const localPoints = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
