@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { InkPad, type InkPadHandle } from './InkPad';
-import { chooseTopic, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, problemSignature, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
+import { chooseTopic, completedEquation, formatForTutor, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, MASTERY_STREAK, problemSignature, recordAttempt, TOPICS, type Problem, type Topic } from './curriculum';
+import { LearningScaffold } from './LearningScaffold';
 import { alternatives, isConfident, isLegible, recognizeNumber, type Stroke } from './recognizer';
 import { getLocalHint, isAwake, loadTutor, MODEL_ID, sleepTutor, tookDownLastSession } from './localTutor';
 import { acceptContribution, acceptPassage, CREATE_SYSTEM, fallbackOpening, localContribution, localPassage, localTopics, PASSAGE_SYSTEM, prefetchQuip, prefetchStory, takeQuip, takeStory } from './voice';
@@ -9,7 +10,7 @@ import { CLOUD_SYSTEM_PROMPT, withIdentity } from './tutorPrompt';
 import { daysWritten, downloadProgress, freshProgress, loadProgress, parseProgressExport, saveProgress, touchSession, type Progress } from './storage';
 import { clearJournal, journalReport, logEvent, readJournal } from './journal';
 
-type Note = { tone: 'welcome' | 'muse' | 'good' | 'gentle' | 'thinking'; text: string; alts?: number[] };
+type Note = { tone: 'welcome' | 'muse' | 'good' | 'gentle' | 'thinking'; text: string; alts?: number[]; equation?: string };
 type Mode = 'practice' | 'create' | 'explore';
 
 const WELCOME_BODY = "Write anywhere on me: work things out, scribble, cross out. Circle an answer when you're sure — or use the little pencil tray below for undo, a hint, or to hand it in.";
@@ -289,13 +290,14 @@ export default function App() {
       const updated = touchSession({ ...progress, mastery, attempts: progress.attempts + 1, streak: progress.streak + 1 }, 'solved', now);
       setProgress(updated);
       const mastered = !isMastered(progress.mastery[topic.id]) && isMastered(mastery[topic.id]);
+      const equation = completedEquation(problem);
       if (mastered) {
         setFlourish(true);
-        setNote({ tone: 'good', text: `${value} — and that's "${topic.short}" all yours now. New pages unlock…` });
+        setNote({ tone: 'good', text: `${value} — and that's "${topic.short}" all yours now. New pages unlock…`, equation });
       } else {
-        setNote({ tone: 'good', text: `${value} — ${takeQuip(problem) ?? PRAISE[updated.attempts % PRAISE.length]}` });
+        setNote({ tone: 'good', text: `${value} — ${takeQuip(problem) ?? PRAISE[updated.attempts % PRAISE.length]}`, equation });
       }
-      window.setTimeout(() => turnPage(updated), eink ? 900 : mastered ? 1900 : 1300);
+      window.setTimeout(() => turnPage(updated), eink ? 1100 : mastered ? 2300 : 1900);
     } else if (record) {
       const mastery = recordAttempt(progress.mastery, topic.id, false, false, { hints, ms, now });
       setProgress(p => touchSession({ ...p, mastery, attempts: p.attempts + 1, streak: 0 }, 'miss', now));
@@ -566,6 +568,7 @@ export default function App() {
                 <p className="whisper"><Handwrite key={problem.statement} text={problem.statement} /></p>
               </>}
         </div>}
+        {!intro && mode === 'practice' && hints > 0 && <LearningScaffold model={problem.scaffold} />}
         {!intro && mode === 'create' && <div className="problem storylines" aria-live="polite">
           {story.slice(-3).map((beat, i) => <p className="story storybeat" key={`${story.length - 3 + i}-${beat.slice(0, 12)}`}><Handwrite key={beat} text={beat} /></p>)}
         </div>}
@@ -584,6 +587,7 @@ export default function App() {
         {!intro && <div className={`note ${note.tone}`} aria-live="polite">
           {note.tone === 'thinking' && <span className="quill" aria-hidden>✎</span>}
           <Handwrite key={note.text} text={note.text} />
+          {note.equation && <strong className="solution-equation">{note.equation}</strong>}
           {!!note.alts?.length && <span className="alts"> or was it {note.alts.map(v =>
             <button key={v} className="alt" onClick={() => check(v)}>{v}</button>)}?</span>}
         </div>}

@@ -217,6 +217,25 @@ export type Problem = {
   answer: number;
   hint1: string;
   hint2: string;
+  scaffold: LearningScaffold;
+};
+
+export type LearningScaffold =
+  | { kind: 'combine'; groups: [number, number] }
+  | { kind: 'take-away'; total: number; remove: number }
+  | { kind: 'ten-frame'; filled: number }
+  | { kind: 'count-on'; start: number; end: number }
+  | { kind: 'equal-groups'; groups: number; each: number };
+
+/** The symbolic idea Folio writes back after the learner has solved the page. */
+export const completedEquation = (problem: Problem): string => {
+  if (problem.equation) return problem.equation.replace('□', String(problem.answer));
+  const model = problem.scaffold;
+  if (model.kind === 'combine') return `${model.groups[0]} + ${model.groups[1]} = ${problem.answer}`;
+  if (model.kind === 'take-away') return `${model.total} − ${model.remove} = ${problem.answer}`;
+  if (model.kind === 'ten-frame') return `${model.filled} + ${problem.answer} = 10`;
+  if (model.kind === 'count-on') return `${model.start} + ${problem.answer} = ${model.end}`;
+  return `${model.groups} × ${model.each} = ${problem.answer}`;
 };
 
 const NAMES = ['Maya', 'Leo', 'Ada', 'Kofi', 'Nina', 'Sam', 'Iris', 'Omar'];
@@ -255,88 +274,103 @@ function generateProblem(topic: Topic, random: () => number): Problem {
       const a = ri(1, 6, r), b = ri(1, Math.min(9 - a, 4) || 1, r);
       return { topicId: topic.id, kind: 'story', answer: a + b, statement:
         `${name} has ${a} ${a === 1 ? thing.one : thing.many}. A friend brings ${b} more. How many ${thing.many} altogether?`,
-        hint1: `Draw ${a} dots for ${name}'s ${thing.many}, then ${b} more dots.`, hint2: `Count all the dots together, starting at ${a}.` };
+        hint1: `Draw ${a} dots for ${name}'s ${thing.many}, then ${b} more dots.`, hint2: `Count all the dots together, starting at ${a}.`,
+        scaffold: { kind: 'combine', groups: [a, b] } };
     }
     case 'subtract-within-10': {
       const a = ri(3, 9, r), b = ri(1, a - 1, r);
       return { topicId: topic.id, kind: 'story', answer: a - b, statement:
         `${name} has ${a} ${thing.many} and gives ${b} away. How many ${thing.many} are left?`,
-        hint1: `Draw ${a} marks, then cross out ${b}.`, hint2: `Count the marks that are not crossed out.` };
+        hint1: `Draw ${a} marks, then cross out ${b}.`, hint2: `Count the marks that are not crossed out.`,
+        scaffold: { kind: 'take-away', total: a, remove: b } };
     }
     case 'represent': {
       const add = r() < 0.5; const a = ri(2, 6, r), b = ri(1, add ? 9 - a : a - 1, r);
       return { topicId: topic.id, kind: 'story', answer: add ? a + b : a - b, statement: add
         ? `Draw a picture on the page: ${a} ${thing.many}, then ${b} more arrive. Write how many there are now.`
         : `Draw a picture on the page: ${a} ${thing.many}, then ${b} get eaten. Write how many are left.`,
-        hint1: `Circles or sticks are fine — the drawing is the thinking.`, hint2: add ? `Count every ${thing.one} you drew.` : `Cross out the ones that got eaten, then count the rest.` };
+        hint1: `Circles or sticks are fine — the drawing is the thinking.`, hint2: add ? `Count every ${thing.one} you drew.` : `Cross out the ones that got eaten, then count the rest.`,
+        scaffold: add ? { kind: 'combine', groups: [a, b] } : { kind: 'take-away', total: a, remove: b } };
     }
     case 'symbols': {
       const a = ri(1, 6, r), b = ri(1, 9 - a, r); const sub = r() < 0.4;
       const eq = sub ? `${a + b} − ${b} = □` : `${a} + ${b} = □`;
       return { topicId: topic.id, kind: 'equation', equation: eq, answer: sub ? a : a + b,
         statement: sub ? `${a + b} minus ${b} equals what?` : `${a} plus ${b} equals what?`,
-        hint1: `Read it out loud: "${sub ? `${a + b} take away ${b}` : `${a} and ${b} more`}".`, hint2: `The = sign means "is the same as". What number makes both sides the same?` };
+        hint1: `Read it out loud: "${sub ? `${a + b} take away ${b}` : `${a} and ${b} more`}".`, hint2: `The = sign means "is the same as". What number makes both sides the same?`,
+        scaffold: sub ? { kind: 'take-away', total: a + b, remove: b } : { kind: 'combine', groups: [a, b] } };
     }
     case 'bonds-to-10': {
       const a = ri(1, 9, r);
       return { topicId: topic.id, kind: 'missing', equation: `${a} + □ = 10`, answer: 10 - a,
         statement: `${a} and how many more make 10?`,
-        hint1: `Picture a ten-frame with ${a} filled in. How many boxes are empty?`, hint2: `Count up from ${a} to 10 on your fingers.` };
+        hint1: `Picture a ten-frame with ${a} filled in. How many boxes are empty?`, hint2: `Count up from ${a} to 10 on your fingers.`,
+        scaffold: { kind: 'ten-frame', filled: a } };
     }
     case 'fluency-5': {
       const add = r() < 0.5; const a = ri(1, 4, r), b = ri(1, add ? 5 - a : a, r);
       return { topicId: topic.id, kind: 'equation', equation: add ? `${a} + ${b} = □` : `${a + b} − ${b} = □`,
         answer: add ? a + b : a, statement: 'Quick one — try it from memory.',
-        hint1: `You know this one. Say it out loud first.`, hint2: add ? `Start at ${a} and count ${b} more.` : `Count back ${b} from ${a + b}.` };
+        hint1: `You know this one. Say it out loud first.`, hint2: add ? `Start at ${a} and count ${b} more.` : `Count back ${b} from ${a + b}.`,
+        scaffold: add ? { kind: 'combine', groups: [a, b] } : { kind: 'take-away', total: a + b, remove: b } };
     }
     case 'word-10': {
       const style = ri(0, 2, r); const a = ri(2, 7, r), b = ri(1, Math.min(9 - a, a), r) || 1;
       if (style === 0) return { topicId: topic.id, kind: 'story', answer: a + b, statement:
         `There are ${a} ${thing.many} in a bowl and ${b} on the table. How many ${thing.many} are there in all?`,
-        hint1: `Draw the bowl group and the table group.`, hint2: `Put the two groups together and count.` };
+        hint1: `Draw the bowl group and the table group.`, hint2: `Put the two groups together and count.`,
+        scaffold: { kind: 'combine', groups: [a, b] } };
       if (style === 1) return { topicId: topic.id, kind: 'story', answer: a - Math.min(b, a - 1), statement:
         `${name} had ${a} ${thing.many}. ${Math.min(b, a - 1)} rolled away. How many ${thing.many} does ${name} have now?`,
-        hint1: `Draw ${a} ${thing.many} and cross out the ones that rolled away.`, hint2: `Count what's left.` };
+        hint1: `Draw ${a} ${thing.many} and cross out the ones that rolled away.`, hint2: `Count what's left.`,
+        scaffold: { kind: 'take-away', total: a, remove: Math.min(b, a - 1) } };
       return { topicId: topic.id, kind: 'story', answer: b, statement:
         `${name} has ${a + b} ${thing.many}. ${a} are red and the rest are green. How many are green?`,
-        hint1: `Draw ${a + b} circles. Colour ${a} of them red.`, hint2: `The circles you didn't colour are the green ones — count them.` };
+        hint1: `Draw ${a + b} circles. Colour ${a} of them red.`, hint2: `The circles you didn't colour are the green ones — count them.`,
+        scaffold: { kind: 'take-away', total: a + b, remove: a } };
     }
     case 'fluency-10': {
       const add = r() < 0.5; const a = ri(2, 8, r), b = ri(1, add ? 10 - a : a - 1, r);
       return { topicId: topic.id, kind: 'equation', equation: add ? `${a} + ${b} = □` : `${a} − ${b} = □`,
         answer: add ? a + b : a - b, statement: 'From memory if you can.',
-        hint1: `Do you know a fact that's close to this one?`, hint2: add ? `Count on from the bigger number, ${Math.max(a, b)}.` : `Count back ${b} from ${a}.` };
+        hint1: `Do you know a fact that's close to this one?`, hint2: add ? `Count on from the bigger number, ${Math.max(a, b)}.` : `Count back ${b} from ${a}.`,
+        scaffold: add ? { kind: 'combine', groups: [a, b] } : { kind: 'take-away', total: a, remove: b } };
     }
     case 'within-20': {
       const a = ri(6, 9, r), b = ri(11 - a, 9, r);
       return { topicId: topic.id, kind: 'equation', equation: `${a} + ${b} = □`, answer: a + b,
         statement: `Try making ten first.`,
-        hint1: `${a} needs ${10 - a} to make 10. Take ${10 - a} from ${b}.`, hint2: `10 and ${b - (10 - a)} left over — put them together.` };
+        hint1: `${a} needs ${10 - a} to make 10. Take ${10 - a} from ${b}.`, hint2: `10 and ${b - (10 - a)} left over — put them together.`,
+        scaffold: { kind: 'combine', groups: [a, b] } };
     }
     case 'missing-number': {
       const a = ri(2, 8, r), b = ri(1, 9 - a, r); const first = r() < 0.5;
       return { topicId: topic.id, kind: 'missing', equation: first ? `□ + ${b} = ${a + b}` : `${a} + □ = ${a + b}`,
         answer: first ? a : b, statement: `What number is hiding in the box?`,
-        hint1: `Think of it backwards: ${a + b} take away ${first ? b : a}.`, hint2: `Count up from ${first ? b : a} to ${a + b}. How many jumps?` };
+        hint1: `Think of it backwards: ${a + b} take away ${first ? b : a}.`, hint2: `Count up from ${first ? b : a} to ${a + b}. How many jumps?`,
+        scaffold: { kind: 'count-on', start: first ? b : a, end: a + b } };
     }
     case 'repeated-addition': {
       const groups = ri(2, 4, r), each = ri(2, 5, r);
       return { topicId: topic.id, kind: 'story', answer: groups * each, statement:
         `${name} makes ${groups} groups of ${thing.many}, with ${each} in each group. How many ${thing.many} in total?`,
-        hint1: `Draw ${groups} circles and put ${each} dots in each.`, hint2: `That's ${Array(groups).fill(each).join(' + ')}. Add them up.` };
+        hint1: `Draw ${groups} circles and put ${each} dots in each.`, hint2: `That's ${Array(groups).fill(each).join(' + ')}. Add them up.`,
+        scaffold: { kind: 'equal-groups', groups, each } };
     }
     case 'arrays': {
       const rows = ri(2, 4, r), cols = ri(2, 5, r);
       return { topicId: topic.id, kind: 'story', answer: rows * cols, statement:
         `Draw an array: ${rows} rows with ${cols} dots in each row. How many dots did you draw?`,
-        hint1: `Line the dots up neatly — rows across, columns down.`, hint2: `Count one row (${cols}), then add it for every row.` };
+        hint1: `Line the dots up neatly — rows across, columns down.`, hint2: `Count one row (${cols}), then add it for every row.`,
+        scaffold: { kind: 'equal-groups', groups: rows, each: cols } };
     }
     case 'times-tables': {
       const table = pick([2, 5, 10], r), n = ri(2, 9, r);
       return { topicId: topic.id, kind: 'equation', equation: `${table} × ${n} = □`, answer: table * n,
         statement: `${table} times ${n}.`,
         hint1: table === 10 ? `Ten times is the number with a zero after it.` : `Count in ${table}s: ${table}, ${table * 2}, ${table * 3}…`,
-        hint2: `That's ${n} groups of ${table}. Draw them if it helps.` };
+        hint2: `That's ${n} groups of ${table}. Draw them if it helps.`,
+        scaffold: { kind: 'equal-groups', groups: n, each: table } };
     }
   }
 }

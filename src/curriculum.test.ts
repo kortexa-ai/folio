@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseTopic, EDGES, effectiveStrength, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, problemSignature, recordAttempt, TOPICS, topicById, type Mastery } from './curriculum';
+import { chooseTopic, completedEquation, EDGES, effectiveStrength, isMastered, isReviewDue, isStruggling, isUnlocked, makeProblem, problemSignature, recordAttempt, TOPICS, topicById, type Mastery } from './curriculum';
 
 const seeded = (seed = 1) => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
@@ -98,6 +98,9 @@ describe('problem generation', () => {
         expect(p.answer).toBeLessThanOrEqual(90);
         expect(p.statement.length).toBeGreaterThan(0);
         expect(p.hint1.length).toBeGreaterThan(0);
+        expect(p.scaffold).toBeDefined();
+        expect(completedEquation(p)).toContain(String(p.answer));
+        expect(completedEquation(p)).not.toContain('□');
         if (p.equation) expect(p.equation).toContain('□');
       }
     }
