@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
+import './polish.css';
 import { logEvent } from './journal';
 
 logEvent(`boot · build ${__BUILD_STAMP__} · ${screen.width}x${screen.height}${(navigator as { standalone?: boolean }).standalone ? ' · installed PWA' : ''}`);

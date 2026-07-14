@@ -1,0 +1,30 @@
+/* Small resilience and accessibility polish kept separate from the notebook art direction. */
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.ink:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.ink:focus-visible {
+  outline-color: rgba(49, 81, 154, .55);
+  outline-offset: -5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .legend { display: none; }
+  .problem, .note, .storylines { max-width: 88%; }
+  .polaroid { width: min(32vw, 150px); right: 18px; }
+}

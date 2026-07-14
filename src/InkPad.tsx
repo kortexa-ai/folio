@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { lastVisibleIndex, scaleInkPoints, type InkDimensions } from './inkGeometry';
 import { detectAnswerCircle, detectScratchOut, isEmptyRing, isQuestionMark, pointInPolygon, strokeCentroid, type Stroke } from './recognizer';
 
 type InkStroke = {
@@ -21,6 +22,8 @@ export type InkPadProps = {
 export type InkPadHandle = {
   /** A small photo of the page's ink (JPEG data URL), for the tutor to look at. Null when blank. */
   snapshot: () => string | null;
+  /** Remove the newest visible stroke. */
+  undo: () => boolean;
 };
 
 const FADE_MS = 650;
@@ -34,10 +37,13 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
   const predicted = useRef<{ x: number; y: number; pressure: number }[]>([]);
   const penActive = useRef(false);
   const lastEnd = useRef<{ stroke: InkStroke; at: number } | null>(null);
+  const pageSize = useRef<InkDimensions>({ width: 0, height: 0 });
   const fadeTimer = useRef(0);
+  const drawFrame = useRef(0);
   const ringRecheck = useRef(0);
 
   const draw = () => {
+    drawFrame.current = 0;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
@@ -69,13 +75,28 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
     }
   };
 
+  // Pointer events can arrive much faster than the display refresh rate. Draw
+  // once per frame instead of repainting the whole page for every event.
+  const scheduleDraw = () => {
+    if (!drawFrame.current) drawFrame.current = requestAnimationFrame(draw);
+  };
+
+  const undo = () => {
+    const index = lastVisibleIndex(strokes.current);
+    if (index < 0) return false;
+    const [removed] = strokes.current.splice(index, 1);
+    if (lastEnd.current?.stroke === removed) lastEnd.current = null;
+    scheduleDraw();
+    return true;
+  };
+
   /** Fade absorbed gesture strokes out, then drop them. In e-ink mode they vanish in one refresh. */
   const absorb = (targets: InkStroke[]) => {
     const start = performance.now();
     for (const s of targets) s.fadeStart = start;
     if (eink) {
       strokes.current = strokes.current.filter(s => s.fadeStart == null);
-      return draw();
+      return scheduleDraw();
     }
     cancelAnimationFrame(fadeTimer.current);
     const tick = () => {
@@ -84,7 +105,7 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
         fadeTimer.current = requestAnimationFrame(tick);
       } else {
         strokes.current = strokes.current.filter(s => s.fadeStart == null);
-        draw();
+        scheduleDraw();
       }
     };
     fadeTimer.current = requestAnimationFrame(tick);
@@ -94,18 +115,39 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
     const canvas = canvasRef.current;
     if (!canvas) return;
     const box = canvas.getBoundingClientRect();
+    const next = { width: box.width, height: box.height };
+    const previous = pageSize.current;
+    if (previous.width && previous.height) {
+      for (const stroke of strokes.current) stroke.points = scaleInkPoints(stroke.points, previous, next);
+      if (active.current) active.current.points = scaleInkPoints(active.current.points, previous, next);
+      predicted.current = scaleInkPoints(predicted.current, previous, next);
+    }
+    pageSize.current = next;
     const ratio = Math.min(devicePixelRatio, 2);
     canvas.width = box.width * ratio;
     canvas.height = box.height * ratio;
     canvas.getContext('2d')?.scale(ratio, ratio);
-    draw();
+    scheduleDraw();
   };
 
-  useEffect(() => { resize(); addEventListener('resize', resize); return () => removeEventListener('resize', resize); }, []);
-  useEffect(() => { strokes.current = []; active.current = null; lastEnd.current = null; clearTimeout(ringRecheck.current); draw(); }, [clearSignal]);
-  useEffect(draw, [eink]);
+  useEffect(() => {
+    resize();
+    const observer = new ResizeObserver(resize);
+    if (canvasRef.current) observer.observe(canvasRef.current);
+    addEventListener('orientationchange', resize);
+    return () => {
+      observer.disconnect();
+      removeEventListener('orientationchange', resize);
+      cancelAnimationFrame(drawFrame.current);
+      cancelAnimationFrame(fadeTimer.current);
+      clearTimeout(ringRecheck.current);
+    };
+  }, []);
+  useEffect(() => { strokes.current = []; active.current = null; lastEnd.current = null; clearTimeout(ringRecheck.current); scheduleDraw(); }, [clearSignal]);
+  useEffect(scheduleDraw, [eink]);
 
   useImperativeHandle(handle, () => ({
+    undo,
     snapshot: () => {
       const live = strokes.current.filter(s => s.fadeStart == null && s.points.length > 1);
       if (!live.length) return null;
@@ -131,7 +173,6 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
         ctx.beginPath();
         ctx.moveTo(s.points[0].x, s.points[0].y);
         for (let i = 1; i < s.points.length; i++) {
-          // keep strokes at least ~2.5px wide in the exported image
           ctx.lineWidth = Math.max(1.8 + s.points[i].pressure * 2.6, 2.5 / scale);
           ctx.lineTo(s.points[i].x, s.points[i].y);
         }
@@ -139,7 +180,7 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
       }
       return canvas.toDataURL('image/jpeg', 0.82);
     },
-  }), []);
+  }), [eink]);
 
   const localPoints = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -156,13 +197,11 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
       return onCircleAnswer(enclosed);
     }
     const scratched = detectScratchOut(finished.points, others.map(s => s.points));
-    if (scratched) {
-      return absorb([finished, ...strokes.current.filter(s => scratched.includes(s.points))]);
-    }
+    if (scratched) return absorb([finished, ...strokes.current.filter(s => scratched.includes(s.points))]);
     const previous = lastEnd.current;
     const groups: InkStroke[][] = [[finished]];
     if (previous && previous.stroke !== finished && previous.stroke.fadeStart == null && performance.now() - previous.at < 1600) {
-      groups.push([previous.stroke, finished]); // hook then its dot
+      groups.push([previous.stroke, finished]);
     }
     for (const group of groups) {
       if (isQuestionMark(group.map(s => s.points))) {
@@ -170,10 +209,6 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
         return onQuestionMark();
       }
     }
-    // Kids also draw the circle FIRST and write inside it. Writing inside an
-    // existing ring — or inside a big empty loop, which only NOW becomes a
-    // ring (so the 0 in a written "10" is never mistaken for one) — re-reads
-    // it after a pause long enough to finish a multi-stroke digit.
     const container = strokes.current.find(s =>
       s !== finished && s.fadeStart == null &&
       (s.kind === 'ring' || (s.kind === 'ink' && isEmptyRing(s.points))) &&
@@ -188,19 +223,47 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
     }
   };
 
+  const finishStroke = (event?: React.PointerEvent<HTMLCanvasElement>) => {
+    const finished = active.current;
+    active.current = null;
+    predicted.current = [];
+    if (event?.pointerType === 'pen') penActive.current = false;
+    scheduleDraw();
+    if (finished && finished.points.length > 1) {
+      interpret(finished);
+      lastEnd.current = { stroke: finished, at: performance.now() };
+    }
+  };
+
+  const cancelStroke = () => {
+    const unfinished = active.current;
+    active.current = null;
+    predicted.current = [];
+    penActive.current = false;
+    if (unfinished) strokes.current = strokes.current.filter(s => s !== unfinished);
+    scheduleDraw();
+  };
+
   return (
     <canvas
       ref={canvasRef}
       className="ink"
-      aria-label="Notebook page — write anywhere. Circle your answer to hand it in; draw a question mark for a hint; scribble hard over ink to erase it."
+      tabIndex={0}
+      aria-label="Notebook page — write anywhere. Circle your answer to hand it in; draw a question mark for a hint; scribble hard over ink to erase it. Press Control or Command Z to undo the last stroke."
+      onKeyDown={event => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+          event.preventDefault();
+          undo();
+        }
+      }}
       onPointerDown={event => {
-        if (event.pointerType === 'touch' && penActive.current) return; // palm rejection
+        if (event.pointerType === 'touch' && penActive.current) return;
         if (event.pointerType === 'pen') penActive.current = true;
         onActivity?.();
         event.currentTarget.setPointerCapture(event.pointerId);
         active.current = { points: localPoints(event), kind: 'ink' };
         strokes.current.push(active.current);
-        draw();
+        scheduleDraw();
       }}
       onPointerMove={event => {
         if (!active.current) return;
@@ -208,20 +271,11 @@ export const InkPad = forwardRef<InkPadHandle, InkPadProps>(function InkPad(
         const rect = event.currentTarget.getBoundingClientRect();
         predicted.current = (event.nativeEvent.getPredictedEvents?.() ?? [])
           .map(e => ({ x: e.clientX - rect.left, y: e.clientY - rect.top, pressure: e.pressure || 0.35 }));
-        draw();
+        scheduleDraw();
       }}
-      onPointerUp={event => {
-        const finished = active.current;
-        active.current = null;
-        predicted.current = [];
-        if (event.pointerType === 'pen') penActive.current = false;
-        draw();
-        if (finished && finished.points.length > 1) {
-          interpret(finished);
-          lastEnd.current = { stroke: finished, at: performance.now() };
-        }
-      }}
-      onPointerCancel={() => { active.current = null; predicted.current = []; penActive.current = false; draw(); }}
+      onPointerUp={finishStroke}
+      onLostPointerCapture={() => { if (active.current) finishStroke(); }}
+      onPointerCancel={cancelStroke}
     />
   );
 });
